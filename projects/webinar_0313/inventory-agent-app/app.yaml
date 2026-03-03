@@ -1,0 +1,11 @@
+# Databricks Apps 実行構成 — AI エージェント
+command:
+  - python
+  - app.py
+
+# 環境変数
+env:
+  - name: GENIE_SPACE_ID
+    description: "Genie Space の ID（Databricks Workspace で作成後に設定）"
+  - name: DATABRICKS_HOST
+    description: "Databricks Workspace のホスト URL"

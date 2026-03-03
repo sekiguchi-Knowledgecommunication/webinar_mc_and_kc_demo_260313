@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="ja" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>生成AIガードレール設計 | ナレッジコミュニケーション</title>
+  <meta name="description" content="日本初の生成AIセキュリティコンサルティング。5プラットフォーム統合による多層防御設計。">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            display: ['"Space Grotesk"','"Noto Sans JP"','system-ui','sans-serif'],
+            body: ['"Noto Sans JP"','"Space Grotesk"','system-ui','sans-serif'],
+          },
+        },
+      },
+    }
+  </script>
+  <style>
+    /* === CSS Custom Properties === */
+    :root {
+      /* Backgrounds */
+      --bg-base:       #0B1120;
+      --bg-surface:    #131B2E;
+      --bg-surface-alt:#1A2540;
+      --bg-surface-3:  #1E293B;
+      /* Primary (Blue) */
+      --primary:       #2563EB;
+      --primary-light: #3B82F6;
+      --primary-dark:  #1D4ED8;
+      --primary-dim:   #1E3A5F;
+      /* Accent (Cyan) */
+      --accent:        #06B6D4;
+      --accent-dark:   #0891B2;
+      --accent-bright: #22D3EE;
+      --accent-dim:    #0C4A6E;
+      /* Gold */
+      --gold:          #F59E0B;
+      --gold-dark:     #D97706;
+      --gold-dim:      #78350F;
+      /* Emerald */
+      --emerald:       #10B981;
+      --emerald-bright:#34D399;
+      --emerald-dim:   #064E3B;
+      /* Text */
+      --text-primary:  #F1F5F9;
+      --text-secondary:#E2E8F0;
+      --text-tertiary: #94A3B8;
+      --text-muted:    #64748B;
+      /* Border */
+      --border:        #1E293B;
+      --border-light:  #334155;
+      /* Gradient */
+      --gradient-accent: linear-gradient(135deg, #2563EB 0%, #06B6D4 100%);
+      /* Typography Scale (Exhibition) */
+      --text-hero:     clamp(2.75rem, 5.5vw, 4.5rem);
+      --text-section:  clamp(1.75rem, 3.5vw, 2.75rem);
+      --text-sub:      clamp(1.25rem, 2.2vw, 1.625rem);
+      --text-body-lg:  clamp(1.125rem, 1.5vw, 1.25rem);
+      --text-body:     max(1.125rem, 18px);
+      --text-kpi:      clamp(3rem, 5.5vw, 4.5rem);
+      /* Shadows (dark mode) */
+      --shadow-sm:  0 1px 3px rgba(0,0,0,0.4);
+      --shadow-md:  0 4px 6px rgba(0,0,0,0.3), 0 2px 4px rgba(0,0,0,0.2);
+    }
+
+    /* === Base === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Space Grotesk', 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', system-ui, sans-serif;
+      font-feature-settings: "palt" 1, "kern" 1;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      font-size: var(--text-body);
+      line-height: 1.75;
+      letter-spacing: 0.02em;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* === Brand Line (top) === */
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--gradient-accent);
+      z-index: 9999;
+    }
+
+    /* === Section Spacing === */
+    .section {
+      padding: clamp(80px, 10vh, 128px) clamp(24px, 5vw, 64px);
+      position: relative;
+    }
+    .section-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    @media (min-width: 1920px) {
+      .section-inner { max-width: 1440px; }
+    }
+
+    /* === Section Heading Accent Bar === */
+    .section-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: clamp(0.8rem, 1vw, 0.875rem);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+    .section-label::before {
+      content: '';
+      width: 24px; height: 2px;
+      background: var(--accent);
+      border-radius: 1px;
+    }
+    .section-heading {
+      font-size: var(--text-section);
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+    .heading-bar::after {
+      content: '';
+      display: block;
+      width: 48px; height: 3px;
+      background: var(--gradient-accent);
+      margin-top: 16px;
+      border-radius: 2px;
+    }
+    .heading-bar-center::after {
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    /* === Cards (shared) === */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: clamp(24px, 3vw, 40px);
+      transition: border-color 0.25s, transform 0.2s;
+    }
+    .card:hover {
+      border-color: var(--border-light);
+      transform: translateY(-2px);
+    }
+
+    /* === Icon Box === */
+    .icon-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 12px;
+    }
+    .icon-box svg { width: 28px; height: 28px; }
+
+    /* === Scroll Reveal === */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.7s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.7s cubic-bezier(0.22,1,0.36,1);
+    }
+    .reveal.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .reveal { opacity: 1; transform: none; transition: none; }
+    }
+
+    /* === KPI Counter Animation === */
+    @keyframes countUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+    .kpi-animate { animation: countUp 0.8s cubic-bezier(0.22,1,0.36,1) both; }
+    @media (prefers-reduced-motion: reduce) { .kpi-animate { animation: none; opacity: 1; transform: none; } }
+
+    /* === FAQ Accordion === */
+    .faq-answer { max-height: 0; overflow: hidden; transition: max-height 0.35s ease, padding 0.35s ease; padding-top: 0; }
+    .faq-item.open .faq-answer { max-height: 300px; padding-top: 16px; }
+    .faq-item .chevron-icon { transition: transform 0.25s ease; }
+    .faq-item.open .chevron-icon { transform: rotate(180deg); }
+
+    /* === Bottom Nav (Sales Operation) === */
+    .bottom-nav {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      z-index: 1000;
+      background: rgba(11,17,32,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+    }
+    .bottom-nav a {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      min-width: 60px;
+      min-height: 48px;
+      padding: 4px 8px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color 0.2s, background 0.2s;
+      white-space: nowrap;
+    }
+    .bottom-nav a:hover, .bottom-nav a.active {
+      color: var(--accent-bright);
+      background: rgba(6,182,212,0.08);
+    }
+    .bottom-nav a svg { width: 20px; height: 20px; }
+
+    /* Padding bottom for fixed nav */
+    body { padding-bottom: 72px; }
+
+    /* === Pulse Glow for Shield === */
+    @keyframes shieldPulse {
+      0%, 100% { filter: drop-shadow(0 0 8px rgba(6,182,212,0.3)); }
+      50% { filter: drop-shadow(0 0 20px rgba(6,182,212,0.6)); }
+    }
+    .shield-pulse { animation: shieldPulse 3s ease-in-out infinite; }
+    @media (prefers-reduced-motion: reduce) { .shield-pulse { animation: none; filter: drop-shadow(0 0 8px rgba(6,182,212,0.3)); } }
+
+    /* === Hero Shield Float (exhibition eye-catch) === */
+    @keyframes shieldFloat {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-18px); }
+    }
+    @media (min-width: 1920px) {
+      @keyframes shieldFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-24px); }
+      }
+    }
+    /* === Glow Breath === */
+    @keyframes glowBreath {
+      0%, 100% { opacity: 0.8; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+    }
+    /* === Orbit Ring === */
+    @keyframes orbitSpin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+    /* === Platform pill === */
+    .platform-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 16px;
+      font-size: clamp(0.75rem, 1vw, 0.875rem);
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: rgba(30, 41, 59, 0.6);
+      border: 1px solid var(--border-light);
+      border-radius: 999px;
+      white-space: nowrap;
+      letter-spacing: 0.02em;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      #hero img, .hero-glow-ring, .hero-orbit { animation: none !important; opacity: 1; }
+    }
+
+    /* === Hero Slide System === */
+    .hero-slide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1),
+                  visibility 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+      z-index: 0;
+    }
+    .hero-slide--active {
+      opacity: 1;
+      visibility: visible;
+      z-index: 1;
+    }
+    .hero-slide__bg {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    /* Indicators */
+    .hero-indicators {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    .hero-indicator {
+      position: relative;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      border: none;
+      background: var(--text-muted);
+      cursor: pointer;
+      padding: 0;
+      overflow: hidden;
+      transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
+      opacity: 0.5;
+    }
+    .hero-indicator:hover { opacity: 0.8; }
+    .hero-indicator--active {
+      width: 48px;
+      background: rgba(100, 116, 139, 0.3);
+      opacity: 1;
+    }
+    .hero-indicator__progress {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0%;
+      background: var(--accent-bright);
+      border-radius: 999px;
+    }
+    .hero-indicator--active .hero-indicator__progress {
+      animation: indicatorFill 8s linear forwards;
+    }
+    @keyframes indicatorFill {
+      from { width: 0%; }
+      to { width: 100%; }
+    }
+
+    /* === Layer Connection Line === */
+    @keyframes flowDown {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 40px; }
+    }
+    .layer-connector {
+      width: 2px;
+      height: 24px;
+      margin: 0 auto;
+      background: repeating-linear-gradient(to bottom, var(--accent) 0, var(--accent) 8px, transparent 8px, transparent 16px);
+      background-size: 2px 16px;
+      animation: flowDown 1.5s linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) { .layer-connector { animation: none; } }
+
+    /* === Focus Visible === */
+    a:focus-visible, button:focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 3px;
+    }
+
+    /* === Noise Texture (subtle) === */
+    .noise-texture::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 0;
+    }
+  </style>
+</head>
+<body>
+
+<!-- =====================================================================
+     SECTION 1: HERO (Dual-slide Auto-rotate)
+     Slide 1: サービス訴求「AIを、解き放て。」
+     Slide 2: リードジェネレーション「知識で、守れ。」
+     ===================================================================== -->
+<section id="hero" class="section noise-texture" style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg-base);overflow:hidden;position:relative;">
+
+  <!-- ===== Slide 1: サービス訴求 ===== -->
+  <div class="hero-slide hero-slide--active" data-slide="0">
+    <div class="hero-slide__bg" style="background:radial-gradient(ellipse 65% 75% at 25% 50%,rgba(6,182,212,0.18) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 80% 70%,rgba(245,158,11,0.06) 0%,transparent 50%),radial-gradient(ellipse 50% 60% at 75% 30%,rgba(37,99,235,0.08) 0%,transparent 50%);"></div>
+    <div class="section-inner" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 1.1fr;gap:clamp(32px,5vw,80px);align-items:center;max-width:1200px;">
+      <!-- LEFT: Security platform visual -->
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+        <!-- Glow ring (breathing animation) -->
+        <div class="hero-glow-ring" style="position:absolute;inset:-60px;border-radius:50%;background:radial-gradient(circle,rgba(6,182,212,0.22) 0%,rgba(6,182,212,0.08) 40%,transparent 70%);pointer-events:none;animation:glowBreath 4s ease-in-out infinite;"></div>
+        <!-- Orbit ring (slow spin) -->
+        <div class="hero-orbit" style="position:absolute;inset:-30px;border:1px solid rgba(6,182,212,0.12);border-radius:50%;animation:orbitSpin 30s linear infinite;"></div>
+        <!-- Image container with edge fade -->
+        <div style="position:relative;width:100%;max-width:560px;border-radius:16px;overflow:hidden;animation:shieldFloat 6s ease-in-out infinite;">
+          <img src="images/hero-security-platform.png" alt="5プラットフォーム統合防御" style="width:100%;height:auto;display:block;filter:drop-shadow(0 0 40px rgba(6,182,212,0.35)) drop-shadow(0 0 80px rgba(6,182,212,0.18)) drop-shadow(0 0 120px rgba(37,99,235,0.10));">
+          <!-- Edge fade: 画像の縁を背景に自然に溶かす -->
+          <div style="position:absolute;inset:0;box-shadow:inset 0 0 50px 15px rgba(11,17,32,0.5);pointer-events:none;border-radius:16px;"></div>
+        </div>
+      </div>
+      <!-- RIGHT: Copy -->
+      <div style="text-align:left;">
+        <div style="margin-bottom:clamp(20px,3vw,36px);">
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:14px 32px;font-size:clamp(1.125rem,1.8vw,1.5rem);font-weight:700;letter-spacing:0.08em;color:var(--bg-base);background:linear-gradient(135deg,var(--gold) 0%,#E8A308 100%);border-radius:999px;box-shadow:0 0 30px rgba(245,158,11,0.2),0 0 60px rgba(245,158,11,0.06);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
+            5製品統合 | 国内唯一の生成AIセキュリティ設計
+          </span>
+        </div>
+        <h1 style="font-size:clamp(3.5rem,7vw,6rem);font-weight:700;line-height:1.05;letter-spacing:-0.04em;color:var(--text-primary);margin-bottom:clamp(16px,2.5vw,32px);text-shadow:0 0 80px rgba(6,182,212,0.15);">
+          AIを、<br><span style="background:linear-gradient(135deg,#06B6D4 0%,#F59E0B 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">解き放て</span>。
+        </h1>
+        <p style="font-size:clamp(1.25rem,2vw,1.75rem);color:var(--text-primary);line-height:1.5;margin-bottom:clamp(16px,2vw,24px);font-weight:600;">
+          5プラットフォーム統合 &times; 3層防御。<br>生成AIを一気通貫で<span style="color:var(--emerald-bright);font-weight:700;">守り、活かす</span>。
+        </p>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:clamp(28px,3.5vw,48px);">
+          <span class="platform-pill">Databricks</span>
+          <span class="platform-pill">Amazon Bedrock</span>
+          <span class="platform-pill">F5</span>
+          <span class="platform-pill">Cisco</span>
+          <span class="platform-pill">AI Foundry</span>
+        </div>
+        <div style="display:flex;gap:clamp(20px,3vw,44px);flex-wrap:wrap;">
+          <div style="text-align:left;min-width:80px;">
+            <div style="font-family:'Space Grotesk',monospace;font-size:clamp(3rem,5vw,4rem);font-weight:700;line-height:1;letter-spacing:-0.03em;background:var(--gradient-accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">90%<span style="font-size:0.5em;">+</span></div>
+            <div style="font-size:clamp(0.875rem,1.2vw,1.125rem);color:var(--text-tertiary);margin-top:6px;white-space:nowrap;font-weight:500;letter-spacing:0.04em;">脅威検出率</div>
+          </div>
+          <div style="text-align:left;min-width:80px;">
+            <div style="font-family:'Space Grotesk',monospace;font-size:clamp(3rem,5vw,4rem);font-weight:700;line-height:1;letter-spacing:-0.03em;background:var(--gradient-accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">8<span style="font-size:0.5em;">週間</span></div>
+            <div style="font-size:clamp(0.875rem,1.2vw,1.125rem);color:var(--text-tertiary);margin-top:6px;white-space:nowrap;font-weight:500;letter-spacing:0.04em;">PoC完了</div>
+          </div>
+          <div style="text-align:left;min-width:80px;">
+            <div style="font-family:'Space Grotesk',monospace;font-size:clamp(3rem,5vw,4rem);font-weight:700;line-height:1;letter-spacing:-0.03em;background:var(--gradient-accent);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">5<span style="font-size:0.5em;">製品</span></div>
+            <div style="font-size:clamp(0.875rem,1.2vw,1.125rem);color:var(--text-tertiary);margin-top:6px;white-space:nowrap;font-weight:500;letter-spacing:0.04em;">統合防御</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Slide 2: ホワイトペーパー訴求 ===== -->
+  <div class="hero-slide" data-slide="1">
+    <div class="hero-slide__bg" style="background:radial-gradient(ellipse 65% 75% at 25% 50%,rgba(245,158,11,0.14) 0%,transparent 60%),radial-gradient(ellipse 40% 50% at 80% 70%,rgba(6,182,212,0.08) 0%,transparent 50%),radial-gradient(ellipse 50% 60% at 75% 30%,rgba(37,99,235,0.06) 0%,transparent 50%);"></div>
+    <div class="section-inner" style="position:relative;z-index:1;display:grid;grid-template-columns:1fr 1.1fr;gap:clamp(32px,5vw,80px);align-items:center;max-width:1200px;">
+      <!-- LEFT: Whitepaper cover (3D perspective) -->
+      <div style="position:relative;display:flex;align-items:center;justify-content:center;">
+        <div style="position:absolute;inset:-60px;border-radius:50%;background:radial-gradient(circle,rgba(245,158,11,0.15) 0%,rgba(245,158,11,0.05) 40%,transparent 70%);pointer-events:none;animation:glowBreath 4s ease-in-out infinite;"></div>
+        <div style="position:relative;animation:shieldFloat 6s ease-in-out infinite;">
+          <div style="width:clamp(280px,28vw,400px);aspect-ratio:210/297;background:linear-gradient(160deg,var(--bg-surface-alt) 0%,var(--bg-surface) 100%);border-radius:8px;border:1px solid var(--border-light);position:relative;transform:perspective(800px) rotateY(-8deg) rotateX(2deg);filter:drop-shadow(0 25px 50px rgba(0,0,0,0.4)) drop-shadow(0 0 60px rgba(245,158,11,0.15));overflow:hidden;">
+            <div style="padding:clamp(24px,3vw,40px);height:100%;display:flex;flex-direction:column;justify-content:space-between;">
+              <div>
+                <div style="width:48px;height:3px;background:var(--gradient-accent);border-radius:2px;margin-bottom:16px;"></div>
+                <div style="font-size:clamp(0.7rem,0.9vw,0.85rem);font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--accent);margin-bottom:12px;">Whitepaper</div>
+                <h3 style="font-size:clamp(1.25rem,2vw,1.75rem);font-weight:700;line-height:1.2;color:var(--text-primary);letter-spacing:-0.02em;">生成AI<br>セキュリティ<br>実践ガイド</h3>
+                <p style="font-size:clamp(0.75rem,1vw,0.875rem);color:var(--text-tertiary);margin-top:12px;line-height:1.5;">OWASP LLM Top 10 対策と<br>ガードレール設計の全手法</p>
+              </div>
+              <div>
+                <div style="width:100%;height:1px;background:var(--border-light);margin-bottom:12px;"></div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  <span style="font-size:clamp(0.65rem,0.8vw,0.75rem);color:var(--text-muted);font-weight:500;">ナレッジコミュニケーション</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- RIGHT: Lead-gen copy -->
+      <div style="text-align:left;">
+        <div style="margin-bottom:clamp(20px,3vw,36px);">
+          <span style="display:inline-flex;align-items:center;gap:10px;padding:14px 32px;font-size:clamp(1.125rem,1.8vw,1.5rem);font-weight:700;letter-spacing:0.08em;color:var(--bg-base);background:linear-gradient(135deg,var(--accent) 0%,var(--accent-bright) 100%);border-radius:999px;box-shadow:0 0 30px rgba(6,182,212,0.2),0 0 60px rgba(6,182,212,0.06);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            無料ホワイトペーパー | 名刺交換で即日送付
+          </span>
+        </div>
+        <h2 style="font-size:clamp(3.5rem,7vw,6rem);font-weight:700;line-height:1.05;letter-spacing:-0.04em;color:var(--text-primary);margin-bottom:clamp(16px,2.5vw,32px);text-shadow:0 0 80px rgba(245,158,11,0.12);">
+          知識で、<br><span style="background:linear-gradient(135deg,#F59E0B 0%,#06B6D4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">守れ</span>。
+        </h2>
+        <p style="font-size:clamp(1.25rem,2vw,1.75rem);color:var(--text-primary);line-height:1.5;margin-bottom:clamp(24px,3vw,40px);font-weight:600;">
+          脅威モデル・防御設計・導入ステップ。<br>意思決定に必要な情報を<span style="color:var(--gold);font-weight:700;">この1冊に凝縮</span>。
+        </p>
+        <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:clamp(28px,3.5vw,48px);">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-bright)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <span style="font-size:var(--text-body-lg);color:var(--text-secondary);">OWASP LLM Top 10 完全対応の脅威分析</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-bright)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <span style="font-size:var(--text-body-lg);color:var(--text-secondary);">ガードレール × レッドチーミングの多層防御設計パターン</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--emerald-bright)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+            <span style="font-size:var(--text-body-lg);color:var(--text-secondary);">8週間PoCのチェックリスト付きロードマップ</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+          <a href="#cta" style="display:inline-flex;align-items:center;gap:10px;padding:18px 40px;font-size:var(--text-body-lg);font-weight:700;color:#fff;background:linear-gradient(135deg,var(--gold) 0%,var(--gold-dark) 100%);border-radius:8px;text-decoration:none;box-shadow:0 4px 20px rgba(245,158,11,0.25);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            メールで受け取る
+          </a>
+          <span style="font-size:clamp(0.8rem,1vw,0.875rem);color:var(--text-muted);">名刺をいただいた方に即日お届け</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide Indicators -->
+  <div class="hero-indicators">
+    <button class="hero-indicator hero-indicator--active" data-goto="0" aria-label="サービス紹介"><span class="hero-indicator__progress"></span></button>
+    <button class="hero-indicator" data-goto="1" aria-label="ホワイトペーパー"><span class="hero-indicator__progress"></span></button>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 2: CHALLENGES
+     Message: "こんな課題、放置していませんか"
+     ===================================================================== -->
+<section id="challenges" class="section" style="background:var(--bg-surface);">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">Challenges</span>
+      <h2 class="section-heading heading-bar heading-bar-center">こんな課題、放置していませんか</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:clamp(20px,2.5vw,32px);">
+      <!-- Card 1 -->
+      <div class="card reveal" style="padding:0;overflow:hidden;">
+        <div style="width:100%;aspect-ratio:4/3;overflow:hidden;">
+          <img src="images/challenge-1-tech-evolution.png" alt="急速な技術進化" style="width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">シャドーAIが野放し</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">誰が何をAIに入力しているか把握できない</p>
+        </div>
+      </div>
+      <!-- Card 2 -->
+      <div class="card reveal" style="padding:0;overflow:hidden;">
+        <div style="width:100%;aspect-ratio:4/3;overflow:hidden;">
+          <img src="images/challenge-2-team-gap.png" alt="チーム間連携不足" style="width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">従来型では検知不可</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">Prompt Injectionは既存FW/WAFをすり抜ける</p>
+        </div>
+      </div>
+      <!-- Card 3 -->
+      <div class="card reveal" style="padding:0;overflow:hidden;">
+        <div style="width:100%;aspect-ratio:4/3;overflow:hidden;">
+          <img src="images/challenge-3-cost.png" alt="セキュリティコスト高騰" style="width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">ISO 42001、何から？</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">認証取得を求められているが道筋が見えない</p>
+        </div>
+      </div>
+      <!-- Card 4 -->
+      <div class="card reveal" style="padding:0;overflow:hidden;">
+        <div style="width:100%;aspect-ratio:4/3;overflow:hidden;">
+          <img src="images/challenge-4-talent.png" alt="AI専門人材不足" style="width:100%;height:100%;object-fit:cover;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">AI専門人材がいない</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">AIセキュリティの設計・運用を担える人材が不在</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 3: SOLUTION OVERVIEW
+     Message: "4つの力を、1つの設計に"
+     ===================================================================== -->
+<section id="solution" class="section" style="background:var(--bg-base);">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">Solution</span>
+      <h2 class="section-heading heading-bar heading-bar-center">5つの力を、1つの設計に</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(12px,1.5vw,20px);">
+      <!-- Databricks -->
+      <div class="card reveal" style="border-top:3px solid var(--accent);text-align:center;padding:clamp(20px,2.5vw,32px) clamp(12px,1.5vw,20px);">
+        <div style="width:48px;height:48px;margin:0 auto 16px;background:rgba(6,182,212,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="3"/><path d="M7 8h10M7 12h10M7 16h6"/></svg>
+        </div>
+        <h4 style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);">Databricks</h4>
+        <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;">AI資産管理 + レッドチーミング + 監査ログ基盤</p>
+      </div>
+      <!-- Amazon Bedrock -->
+      <div class="card reveal" style="border-top:3px solid #FF9900;text-align:center;padding:clamp(20px,2.5vw,32px) clamp(12px,1.5vw,20px);">
+        <div style="width:48px;height:48px;margin:0 auto 16px;background:rgba(255,153,0,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#FF9900" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4M12 16h.01"/></svg>
+        </div>
+        <h4 style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);">Amazon Bedrock</h4>
+        <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;">Guardrails + コンテンツフィルタ + トピック制御</p>
+      </div>
+      <!-- F5 / CalypsoAI -->
+      <div class="card reveal" style="border-top:3px solid var(--primary);text-align:center;padding:clamp(20px,2.5vw,32px) clamp(12px,1.5vw,20px);">
+        <div style="width:48px;height:48px;margin:0 auto 16px;background:rgba(37,99,235,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary-light)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h4 style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);">F5 / CalypsoAI</h4>
+        <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;">リアルタイム入出力検査 + PII検出 + 推論時ガードレール</p>
+      </div>
+      <!-- Cisco -->
+      <div class="card reveal" style="border-top:3px solid var(--emerald);text-align:center;padding:clamp(20px,2.5vw,32px) clamp(12px,1.5vw,20px);">
+        <div style="width:48px;height:48px;margin:0 auto 16px;background:rgba(16,185,129,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </div>
+        <h4 style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);">Cisco AI Defense</h4>
+        <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;">脅威インテリジェンス + 脆弱性スキャン + ポリシー制御</p>
+      </div>
+      <!-- Microsoft -->
+      <div class="card reveal" style="border-top:3px solid var(--gold);text-align:center;padding:clamp(20px,2.5vw,32px) clamp(12px,1.5vw,20px);">
+        <div style="width:48px;height:48px;margin:0 auto 16px;background:rgba(245,158,11,0.1);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8"/><rect x="13" y="3" width="8" height="8"/><rect x="3" y="13" width="8" height="8"/><rect x="13" y="13" width="8" height="8"/></svg>
+        </div>
+        <h4 style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);">Microsoft AI Foundry</h4>
+        <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;">コンテンツ安全性 + ID管理 + 監査証跡集約</p>
+      </div>
+    </div>
+    <p class="reveal" style="text-align:center;color:var(--text-tertiary);margin-top:32px;font-size:var(--text-body-lg);">
+      単一製品では守れない。5製品の協調動作で、死角のない防御を実現。
+    </p>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 4: 3-LAYER DEFENSE (Peak Experience)
+     Message: "守る、試す、証明する。3層の防御設計。"
+     ===================================================================== -->
+<section id="defense" class="section" style="background:var(--bg-surface);">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">3-Layer Defense</span>
+      <h2 class="section-heading heading-bar heading-bar-center">守る、試す、証明する。<br>3層の防御設計。</h2>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1.2fr;gap:clamp(32px,4vw,64px);align-items:center;max-width:1100px;margin:0 auto;">
+      <!-- Shield Visual -->
+      <div class="reveal" style="display:flex;align-items:center;justify-content:center;">
+        <img src="images/hero-shield-3layer.png" alt="3層防御シールド" style="width:100%;max-width:480px;height:auto;border-radius:16px;filter:drop-shadow(0 0 40px rgba(6,182,212,0.15));">
+      </div>
+      <!-- Layer Stack -->
+      <div>
+      <!-- Layer 1 -->
+      <div class="card reveal" style="border-left:4px solid var(--primary);border-radius:0 12px 12px 0;padding:clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(32px,4vw,48px);position:relative;background:linear-gradient(135deg,rgba(37,99,235,0.08) 0%,var(--bg-surface) 100%);">
+        <div style="position:absolute;left:clamp(12px,2vw,20px);top:50%;transform:translateY(-50%);width:40px;height:40px;background:var(--primary-dim);border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:1.125rem;font-weight:700;color:#60A5FA;">1</div>
+        <div style="margin-left:36px;">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">推論時多層防御</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:6px;">入力/出力をリアルタイムで検査。PII・Prompt Injection・Jailbreakを自動遮断</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">Block / Audit / Redact</span>
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">P95 &le; 500ms</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div class="layer-connector"></div>
+
+      <!-- Layer 2 -->
+      <div class="card reveal" style="border-left:4px solid var(--accent);border-radius:0 12px 12px 0;padding:clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(32px,4vw,48px);position:relative;background:linear-gradient(135deg,rgba(6,182,212,0.08) 0%,var(--bg-surface) 100%);">
+        <div style="position:absolute;left:clamp(12px,2vw,20px);top:50%;transform:translateY(-50%);width:40px;height:40px;background:var(--accent-dim);border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:1.125rem;font-weight:700;color:#22D3EE;">2</div>
+        <div style="margin-left:36px;">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">継続的レッドチーミング</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:6px;">毎月の疑似攻撃で脆弱性を検出。OWASP LLM 2025の全10カテゴリに対応</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">月次自動実行</span>
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">14種ツール統合</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div class="layer-connector"></div>
+
+      <!-- Layer 3 -->
+      <div class="card reveal" style="border-left:4px solid var(--emerald);border-radius:0 12px 12px 0;padding:clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(28px,3vw,40px) clamp(32px,4vw,48px);position:relative;background:linear-gradient(135deg,rgba(16,185,129,0.08) 0%,var(--bg-surface) 100%);">
+        <div style="position:absolute;left:clamp(12px,2vw,20px);top:50%;transform:translateY(-50%);width:40px;height:40px;background:var(--emerald-dim);border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:1.125rem;font-weight:700;color:#34D399;">3</div>
+        <div style="margin-left:36px;">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">監査証跡一体設計</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:6px;">全操作ログを改ざん防止で保管。ISO/IEC 42001の監査に即対応</p>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;">
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">PDCA一体運用</span>
+            <span style="font-size:0.8rem;font-weight:500;padding:4px 12px;border-radius:999px;background:var(--bg-surface-alt);color:var(--text-tertiary);border:1px solid var(--border);">証跡自動生成</span>
+          </div>
+        </div>
+      </div>
+      </div><!-- /Layer Stack -->
+    </div><!-- /grid -->
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 5: WHY NARECOM
+     Message: "なぜナレコムか"
+     ===================================================================== -->
+<section id="why" class="section" style="background:var(--bg-base);position:relative;overflow:hidden;">
+  <!-- Decorative glow -->
+  <div style="position:absolute;top:-100px;right:-100px;width:400px;height:400px;border-radius:999px;background:radial-gradient(circle,rgba(6,182,212,0.05) 0%,transparent 70%);pointer-events:none;"></div>
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">Why Narecom</span>
+      <h2 class="section-heading heading-bar heading-bar-center">なぜナレコムか</h2>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(20px,2.5vw,32px);">
+      <!-- Feature 1 -->
+      <div class="card reveal" style="position:relative;overflow:hidden;padding:0;">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:var(--gradient-accent);z-index:1;"></div>
+        <div style="width:100%;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-base);">
+          <img src="images/diff-1-japan-first.png" alt="日本初の5プラットフォーム統合" style="width:85%;height:85%;object-fit:contain;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">日本唯一の5PF統合</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">他社は単一製品の導入支援。ナレコムだけが5製品を横断統合し、E2Eで守る設計力を持つ。</p>
+        </div>
+      </div>
+      <!-- Feature 2 -->
+      <div class="card reveal" style="position:relative;overflow:hidden;padding:0;">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:var(--gradient-accent);z-index:1;"></div>
+        <div style="width:100%;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-base);">
+          <img src="images/diff-2-poc-driven.png" alt="PoC駆動の確実なアプローチ" style="width:85%;height:85%;object-fit:contain;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">"守る"と"証明する"を同時設計</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">セキュリティ導入と監査証跡を一体設計で効率的に両立。二重投資が不要。</p>
+        </div>
+      </div>
+      <!-- Feature 3 -->
+      <div class="card reveal" style="position:relative;overflow:hidden;padding:0;">
+        <div style="position:absolute;top:0;left:0;right:0;height:4px;background:var(--gradient-accent);z-index:1;"></div>
+        <div style="width:100%;aspect-ratio:1/1;overflow:hidden;display:flex;align-items:center;justify-content:center;background:var(--bg-base);">
+          <img src="images/diff-3-audit-onestop.png" alt="監査対応ワンストップ" style="width:85%;height:85%;object-fit:contain;transition:transform 0.4s ease;" onmouseover="this.style.transform='scale(1.08)'" onmouseout="this.style.transform='scale(1)'">
+        </div>
+        <div style="padding:clamp(20px,2.5vw,32px);">
+          <h3 style="font-size:var(--text-sub);font-weight:700;color:var(--text-primary);">成功条件を先に定量定義</h3>
+          <p style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:8px;line-height:1.75;">脅威検出率90%以上、誤検知率5%以下。曖昧な"やってみないとわからない"はない。</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 6: POC TIMELINE
+     Message: "8週間で実証する"
+     ===================================================================== -->
+<section id="poc" class="section" style="background:var(--bg-surface);">
+  <div class="section-inner">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">PoC Roadmap</span>
+      <h2 class="section-heading heading-bar heading-bar-center">8週間で実証する</h2>
+    </div>
+    <div class="reveal" style="display:flex;gap:0;position:relative;">
+      <!-- Connecting line -->
+      <div style="position:absolute;top:32px;left:12.5%;right:12.5%;height:2px;background:var(--border-light);"></div>
+      <!-- Sprint 0 -->
+      <div style="flex:1;position:relative;padding-top:52px;text-align:center;">
+        <div style="position:absolute;top:24px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;background:var(--primary);border:3px solid var(--bg-surface);z-index:1;"></div>
+        <span style="display:block;font-size:0.8rem;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;">Sprint 0</span>
+        <span style="display:block;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);margin-top:6px;">環境構築</span>
+        <span style="display:block;font-size:var(--text-body);color:var(--text-tertiary);margin-top:4px;">2週間</span>
+      </div>
+      <!-- Sprint 1 -->
+      <div style="flex:1;position:relative;padding-top:52px;text-align:center;">
+        <div style="position:absolute;top:24px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;background:var(--accent);border:3px solid var(--bg-surface);z-index:1;"></div>
+        <span style="display:block;font-size:0.8rem;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;">Sprint 1</span>
+        <span style="display:block;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);margin-top:6px;">ガードレール検証</span>
+        <span style="display:block;font-size:var(--text-body);color:var(--text-tertiary);margin-top:4px;">2週間</span>
+      </div>
+      <!-- Sprint 2 -->
+      <div style="flex:1;position:relative;padding-top:52px;text-align:center;">
+        <div style="position:absolute;top:24px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;background:var(--emerald);border:3px solid var(--bg-surface);z-index:1;"></div>
+        <span style="display:block;font-size:0.8rem;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;">Sprint 2</span>
+        <span style="display:block;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);margin-top:6px;">レッドチーミング</span>
+        <span style="display:block;font-size:var(--text-body);color:var(--text-tertiary);margin-top:4px;">2週間</span>
+      </div>
+      <!-- Sprint 3 -->
+      <div style="flex:1;position:relative;padding-top:52px;text-align:center;">
+        <div style="position:absolute;top:24px;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;background:var(--gold);border:3px solid var(--bg-surface);z-index:1;"></div>
+        <span style="display:block;font-size:0.8rem;font-weight:700;color:var(--accent);letter-spacing:0.08em;text-transform:uppercase;">Sprint 3</span>
+        <span style="display:block;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);margin-top:6px;">統合評価</span>
+        <span style="display:block;font-size:var(--text-body);color:var(--text-tertiary);margin-top:4px;">2週間</span>
+      </div>
+    </div>
+    <p class="reveal" style="text-align:center;color:var(--text-tertiary);margin-top:32px;font-size:var(--text-body-lg);">
+      150項目のチェックリストで進捗を可視化。曖昧さゼロの構造化PoC。
+    </p>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 7: KPI
+     Message: "数字で守る、数字で証明する"
+     ===================================================================== -->
+<section id="kpi" class="section" style="background:var(--bg-base);position:relative;overflow:hidden;">
+  <!-- Glow -->
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(6,182,212,0.06) 0%,transparent 70%);pointer-events:none;"></div>
+  <div class="section-inner" style="position:relative;z-index:1;">
+    <div class="reveal" style="text-align:center;margin-bottom:56px;">
+      <span class="section-label" style="justify-content:center;">KPI</span>
+      <h2 class="section-heading heading-bar heading-bar-center">数字で守る、数字で証明する</h2>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-top:20px;letter-spacing:0.02em;">PoC目標値 &#8212; 開始前に御社と事前合意</p>
+    </div>
+    <div class="reveal" style="display:grid;grid-template-columns:repeat(5,1fr);gap:clamp(12px,2vw,32px);" id="kpi-grid">
+      <!-- KPI 1 -->
+      <div style="text-align:center;padding:24px 8px;">
+        <div style="font-family:'Space Grotesk',monospace;font-size:var(--text-kpi);font-weight:700;line-height:1;letter-spacing:-0.03em;color:#60A5FA;" data-target="90" data-suffix="%+">90%+</div>
+        <div style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:12px;">脅威検出率</div>
+      </div>
+      <!-- KPI 2 -->
+      <div style="text-align:center;padding:24px 8px;">
+        <div style="font-family:'Space Grotesk',monospace;font-size:var(--text-kpi);font-weight:700;line-height:1;letter-spacing:-0.03em;color:var(--accent-bright);" data-target="5" data-suffix="%以下">5%<span style="font-size:0.4em;font-weight:400;">以下</span></div>
+        <div style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:12px;">誤検知率</div>
+      </div>
+      <!-- KPI 3 -->
+      <div style="text-align:center;padding:24px 8px;">
+        <div style="font-family:'Space Grotesk',monospace;font-size:var(--text-kpi);font-weight:700;line-height:1;letter-spacing:-0.03em;color:var(--emerald-bright);">100%</div>
+        <div style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:12px;">遮断成功率</div>
+      </div>
+      <!-- KPI 4 -->
+      <div style="text-align:center;padding:24px 8px;">
+        <div style="font-family:'Space Grotesk',monospace;font-size:var(--text-kpi);font-weight:700;line-height:1;letter-spacing:-0.03em;color:var(--gold);">10<span style="font-size:0.4em;font-weight:400;">分以内</span></div>
+        <div style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:12px;">E2E追跡時間</div>
+      </div>
+      <!-- KPI 5 -->
+      <div style="text-align:center;padding:24px 8px;">
+        <div style="font-family:'Space Grotesk',monospace;font-size:var(--text-kpi);font-weight:700;line-height:1;letter-spacing:-0.03em;color:var(--text-primary);">8<span style="font-size:0.4em;font-weight:400;">週間</span></div>
+        <div style="font-size:var(--text-body);color:var(--text-tertiary);margin-top:12px;">PoC完了期間</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 8: FAQ
+     Message: よくある質問（展示会でタップして開閉）
+     ===================================================================== -->
+<section id="faq" class="section" style="background:var(--bg-surface);">
+  <div class="section-inner" style="max-width:800px;">
+    <div class="reveal" style="text-align:center;margin-bottom:48px;">
+      <span class="section-label" style="justify-content:center;">FAQ</span>
+      <h2 class="section-heading heading-bar heading-bar-center">よくある質問</h2>
+    </div>
+
+    <!-- FAQ 1 -->
+    <div class="faq-item reveal" style="border-bottom:1px solid var(--border);padding:24px 0;">
+      <button class="faq-question" style="display:flex;justify-content:space-between;align-items:center;width:100%;cursor:pointer;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:none;border:none;text-align:left;min-height:48px;padding:0;" aria-expanded="false">
+        <span>5製品全部入れないとダメですか？</span>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:16px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer" style="font-size:var(--text-body);color:var(--text-tertiary);line-height:1.75;">
+        段階的な導入が可能です。まず1製品の動作確認から始め、最終的に5製品を統合することで最大の効果が出ます。御社の状況に応じたロードマップをご提案します。
+      </div>
+    </div>
+
+    <!-- FAQ 2 -->
+    <div class="faq-item reveal" style="border-bottom:1px solid var(--border);padding:24px 0;">
+      <button class="faq-question" style="display:flex;justify-content:space-between;align-items:center;width:100%;cursor:pointer;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:none;border:none;text-align:left;min-height:48px;padding:0;" aria-expanded="false">
+        <span>費用感はどれくらいですか？</span>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:16px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer" style="font-size:var(--text-body);color:var(--text-tertiary);line-height:1.75;">
+        PoCは8週間で500万円からです。本番移行はスコープに応じて別途お見積りします。PoC段階で投資判断の根拠が得られますので、リスクを最小化できます。
+      </div>
+    </div>
+
+    <!-- FAQ 3 -->
+    <div class="faq-item reveal" style="border-bottom:1px solid var(--border);padding:24px 0;">
+      <button class="faq-question" style="display:flex;justify-content:space-between;align-items:center;width:100%;cursor:pointer;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:none;border:none;text-align:left;min-height:48px;padding:0;" aria-expanded="false">
+        <span>自社で内製できませんか？</span>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:16px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer" style="font-size:var(--text-body);color:var(--text-tertiary);line-height:1.75;">
+        5製品の統合設計には各製品のアーキテクチャへの深い理解が必要です。ナレコムの構造化アプローチなら、通常3-6ヶ月かかる設計が8週間で完了します。
+      </div>
+    </div>
+
+    <!-- FAQ 4 -->
+    <div class="faq-item reveal" style="border-bottom:1px solid var(--border);padding:24px 0;">
+      <button class="faq-question" style="display:flex;justify-content:space-between;align-items:center;width:100%;cursor:pointer;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:none;border:none;text-align:left;min-height:48px;padding:0;" aria-expanded="false">
+        <span>既存のセキュリティベンダーと併用できますか？</span>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:16px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer" style="font-size:var(--text-body);color:var(--text-tertiary);line-height:1.75;">
+        もちろんです。従来型セキュリティ（FW/WAF/EDR）は既存ベンダー様にお任せし、AI固有のセキュリティ層をナレコムが担当するという棲み分けが最も効率的です。
+      </div>
+    </div>
+
+    <!-- FAQ 5 -->
+    <div class="faq-item reveal" style="padding:24px 0;">
+      <button class="faq-question" style="display:flex;justify-content:space-between;align-items:center;width:100%;cursor:pointer;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:none;border:none;text-align:left;min-height:48px;padding:0;" aria-expanded="false">
+        <span>ISO 42001は必須ですか？</span>
+        <svg class="chevron-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-left:16px;"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="faq-answer" style="font-size:var(--text-body);color:var(--text-tertiary);line-height:1.75;">
+        必須ではありませんが、日本でもISMS-ACが認証の認定を開始し、認証取得を目指す企業が急増しています。今設計しておけば、後から追加対応する場合の2-3倍のコスト削減になります。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 9: CTA
+     Message: 名刺交換 + QRコード（Peak-End Rule: エンド体験）
+     ===================================================================== -->
+<section id="cta" class="section" style="background:var(--bg-base);position:relative;overflow:hidden;">
+  <!-- Accent glow -->
+  <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:700px;height:350px;background:radial-gradient(ellipse,rgba(37,99,235,0.08) 0%,transparent 70%);pointer-events:none;"></div>
+  <div class="section-inner" style="position:relative;z-index:1;text-align:center;">
+    <div class="reveal">
+      <!-- Shield icon -->
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 24px;display:block;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+      <h2 style="font-size:var(--text-section);font-weight:700;line-height:1.2;letter-spacing:-0.02em;color:var(--text-primary);margin-bottom:16px;">
+        まずはお話しさせてください
+      </h2>
+      <p style="font-size:var(--text-body-lg);color:var(--text-tertiary);max-width:560px;margin:0 auto 36px;line-height:1.75;">
+        御社のAI利用状況をヒアリングし、リスクの全体像を可視化します。名刺をいただければ、詳細資料をお送りします。
+      </p>
+    </div>
+
+    <!-- CTA buttons -->
+    <div class="reveal" style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:48px;">
+      <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 36px;font-size:var(--text-body-lg);font-weight:700;color:#fff;background:var(--primary);border:2px solid transparent;border-radius:8px;text-decoration:none;transition:background 0.25s,transform 0.2s,box-shadow 0.25s;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 8h0M7 12h0M7 16h10"/></svg>
+        名刺を交換する
+      </a>
+      <a href="#" style="display:inline-flex;align-items:center;gap:8px;padding:16px 36px;font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);background:transparent;border:2px solid var(--border-light);border-radius:8px;text-decoration:none;transition:color 0.25s,background 0.25s,border-color 0.25s,transform 0.2s;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        個別相談を予約する
+      </a>
+    </div>
+
+    <!-- QR Code placeholder -->
+    <div class="reveal" style="margin:0 auto;max-width:240px;">
+      <div style="background:#fff;border-radius:12px;padding:20px;margin-bottom:12px;">
+        <!-- QR Code SVG placeholder -->
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" style="width:100%;height:auto;">
+          <rect width="200" height="200" fill="#fff"/>
+          <!-- Simplified QR pattern -->
+          <g fill="#0B1120">
+            <!-- Position patterns -->
+            <rect x="10" y="10" width="50" height="50"/><rect x="17" y="17" width="36" height="36" fill="#fff"/><rect x="24" y="24" width="22" height="22"/>
+            <rect x="140" y="10" width="50" height="50"/><rect x="147" y="17" width="36" height="36" fill="#fff"/><rect x="154" y="24" width="22" height="22"/>
+            <rect x="10" y="140" width="50" height="50"/><rect x="17" y="147" width="36" height="36" fill="#fff"/><rect x="24" y="154" width="22" height="22"/>
+            <!-- Data modules (decorative) -->
+            <rect x="70" y="10" width="8" height="8"/><rect x="86" y="10" width="8" height="8"/><rect x="102" y="10" width="8" height="8"/><rect x="118" y="10" width="8" height="8"/>
+            <rect x="70" y="26" width="8" height="8"/><rect x="102" y="26" width="8" height="8"/>
+            <rect x="70" y="42" width="8" height="8"/><rect x="86" y="42" width="8" height="8"/><rect x="118" y="42" width="8" height="8"/>
+            <rect x="10" y="70" width="8" height="8"/><rect x="26" y="70" width="8" height="8"/><rect x="42" y="70" width="8" height="8"/><rect x="70" y="70" width="8" height="8"/><rect x="86" y="70" width="8" height="8"/><rect x="102" y="70" width="8" height="8"/><rect x="118" y="70" width="8" height="8"/><rect x="140" y="70" width="8" height="8"/><rect x="156" y="70" width="8" height="8"/><rect x="180" y="70" width="8" height="8"/>
+            <rect x="10" y="86" width="8" height="8"/><rect x="42" y="86" width="8" height="8"/><rect x="70" y="86" width="8" height="8"/><rect x="118" y="86" width="8" height="8"/><rect x="156" y="86" width="8" height="8"/>
+            <rect x="10" y="102" width="8" height="8"/><rect x="26" y="102" width="8" height="8"/><rect x="42" y="102" width="8" height="8"/><rect x="70" y="102" width="8" height="8"/><rect x="86" y="102" width="8" height="8"/><rect x="102" y="102" width="8" height="8"/><rect x="140" y="102" width="8" height="8"/><rect x="172" y="102" width="8" height="8"/>
+            <rect x="10" y="118" width="8" height="8"/><rect x="86" y="118" width="8" height="8"/><rect x="118" y="118" width="8" height="8"/><rect x="156" y="118" width="8" height="8"/><rect x="180" y="118" width="8" height="8"/>
+            <rect x="70" y="140" width="8" height="8"/><rect x="86" y="140" width="8" height="8"/><rect x="102" y="140" width="8" height="8"/><rect x="140" y="140" width="8" height="8"/><rect x="172" y="140" width="8" height="8"/>
+            <rect x="70" y="156" width="8" height="8"/><rect x="118" y="156" width="8" height="8"/><rect x="140" y="156" width="8" height="8"/><rect x="156" y="156" width="8" height="8"/>
+            <rect x="70" y="172" width="8" height="8"/><rect x="86" y="172" width="8" height="8"/><rect x="102" y="172" width="8" height="8"/><rect x="140" y="172" width="8" height="8"/><rect x="180" y="172" width="8" height="8"/>
+          </g>
+        </svg>
+      </div>
+      <p style="font-size:0.85rem;color:var(--text-muted);">QRコードで資料をダウンロード</p>
+    </div>
+  </div>
+</section>
+
+<!-- =====================================================================
+     SECTION 10: FOOTER
+     ===================================================================== -->
+<footer class="section" style="background:var(--bg-base);padding-top:48px;padding-bottom:96px;border-top:1px solid var(--border);">
+  <div class="section-inner" style="text-align:center;">
+    <!-- Logo -->
+    <div style="margin-bottom:20px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:middle;margin-right:8px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span style="font-size:var(--text-body-lg);font-weight:700;color:var(--text-primary);vertical-align:middle;">ナレッジコミュニケーション</span>
+    </div>
+    <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">
+      生成AIガードレール設計サービス
+    </p>
+    <p style="font-size:0.75rem;color:var(--text-muted);">
+      &copy; 2026 Knowledge Communication Inc. All rights reserved.
+    </p>
+  </div>
+</footer>
+
+<!-- =====================================================================
+     BOTTOM NAVIGATION (Sales Operation Bar)
+     ===================================================================== -->
+<nav class="bottom-nav" aria-label="セクションナビゲーション">
+  <div style="display:flex;justify-content:center;gap:4px;max-width:720px;margin:0 auto;">
+    <a href="#hero">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      TOP
+    </a>
+    <a href="#challenges">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      課題
+    </a>
+    <a href="#solution">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      5PF
+    </a>
+    <a href="#defense">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      3層
+    </a>
+    <a href="#why">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 22 12 18.56 5.82 22 7 14.14l-5-4.87 6.91-1.01L12 2z"/></svg>
+      特長
+    </a>
+    <a href="#poc">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      PoC
+    </a>
+    <a href="#kpi">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      KPI
+    </a>
+    <a href="#faq">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      FAQ
+    </a>
+    <a href="#cta">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 8h0M7 12h0M7 16h10"/></svg>
+      CTA
+    </a>
+  </div>
+</nav>
+
+<!-- =====================================================================
+     SCRIPTS
+     ===================================================================== -->
+<script>
+(function() {
+  'use strict';
+
+  // === Scroll Reveal (Intersection Observer) ===
+  var prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!prefersReducedMotion) {
+    var observer = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(function(el) {
+      observer.observe(el);
+    });
+  } else {
+    document.querySelectorAll('.reveal').forEach(function(el) {
+      el.classList.add('visible');
+    });
+  }
+
+  // === FAQ Accordion ===
+  document.querySelectorAll('.faq-question').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var item = this.closest('.faq-item');
+      var isOpen = item.classList.contains('open');
+      // Close all
+      document.querySelectorAll('.faq-item').forEach(function(el) {
+        el.classList.remove('open');
+        el.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+      });
+      // Toggle current
+      if (!isOpen) {
+        item.classList.add('open');
+        this.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
+
+  // === Bottom Nav Active State ===
+  var navLinks = document.querySelectorAll('.bottom-nav a');
+  var sections = [];
+  navLinks.forEach(function(link) {
+    var id = link.getAttribute('href').replace('#', '');
+    var section = document.getElementById(id);
+    if (section) sections.push({ el: section, link: link });
+  });
+
+  function updateActiveNav() {
+    var scrollPos = window.scrollY + window.innerHeight / 3;
+    var active = null;
+    sections.forEach(function(s) {
+      if (s.el.offsetTop <= scrollPos) active = s;
+    });
+    navLinks.forEach(function(l) { l.classList.remove('active'); });
+    if (active) active.link.classList.add('active');
+  }
+
+  var ticking = false;
+  window.addEventListener('scroll', function() {
+    if (!ticking) {
+      window.requestAnimationFrame(function() {
+        updateActiveNav();
+        ticking = false;
+      });
+      ticking = true;
+    }
+  });
+  updateActiveNav();
+
+  // === Hero Slide Auto-Rotation ===
+  (function() {
+    var slides = document.querySelectorAll('.hero-slide');
+    var indicators = document.querySelectorAll('.hero-indicator');
+    var currentSlide = 0;
+    var slideInterval = 8000; // 8秒
+    var timer = null;
+
+    function goToSlide(index) {
+      if (index === currentSlide) return;
+      // 現在のスライドを非アクティブに
+      slides[currentSlide].classList.remove('hero-slide--active');
+      indicators[currentSlide].classList.remove('hero-indicator--active');
+      // プログレスバーをリセット
+      var oldProgress = indicators[currentSlide].querySelector('.hero-indicator__progress');
+      if (oldProgress) {
+        oldProgress.style.animation = 'none';
+        oldProgress.offsetHeight; // reflow
+        oldProgress.style.animation = '';
+      }
+      // 新しいスライドをアクティブに
+      currentSlide = index;
+      slides[currentSlide].classList.add('hero-slide--active');
+      indicators[currentSlide].classList.add('hero-indicator--active');
+      // プログレスバーを開始
+      var newProgress = indicators[currentSlide].querySelector('.hero-indicator__progress');
+      if (newProgress) {
+        newProgress.style.animation = 'none';
+        newProgress.offsetHeight; // reflow
+        newProgress.style.animation = 'indicatorFill ' + (slideInterval / 1000) + 's linear forwards';
+      }
+    }
+
+    function nextSlide() {
+      var next = (currentSlide + 1) % slides.length;
+      goToSlide(next);
+    }
+
+    function startTimer() {
+      stopTimer();
+      timer = setInterval(nextSlide, slideInterval);
+    }
+
+    function stopTimer() {
+      if (timer) { clearInterval(timer); timer = null; }
+    }
+
+    function resetTimer() {
+      stopTimer();
+      startTimer();
+    }
+
+    // インジケータークリック
+    indicators.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var target = parseInt(this.getAttribute('data-goto'), 10);
+        goToSlide(target);
+        resetTimer();
+      });
+    });
+
+    // タッチスワイプ対応
+    var heroSection = document.getElementById('hero');
+    var touchStartX = 0;
+    heroSection.addEventListener('touchstart', function(e) {
+      touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+    heroSection.addEventListener('touchend', function(e) {
+      var diff = touchStartX - e.changedTouches[0].screenX;
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) {
+          goToSlide((currentSlide + 1) % slides.length);
+        } else {
+          goToSlide((currentSlide - 1 + slides.length) % slides.length);
+        }
+        resetTimer();
+      }
+    }, { passive: true });
+
+    // タブ非表示時にタイマー停止
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        stopTimer();
+      } else {
+        resetTimer();
+      }
+    });
+
+    // reduced motion ならアニメーションなし
+    if (prefersReducedMotion) {
+      slides[0].classList.add('hero-slide--active');
+      indicators[0].classList.add('hero-indicator--active');
+    } else {
+      startTimer();
+    }
+  })();
+
+  // === KPI Count-Up Animation ===
+  if (!prefersReducedMotion) {
+    var kpiGrid = document.getElementById('kpi-grid');
+    if (kpiGrid) {
+      var kpiObserver = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+          if (entry.isIntersecting) {
+            entry.target.querySelectorAll('[data-target]').forEach(function(el, i) {
+              el.style.animationDelay = (i * 0.15) + 's';
+              el.classList.add('kpi-animate');
+            });
+            kpiObserver.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.3 });
+      kpiObserver.observe(kpiGrid);
+    }
+  }
+})();
+</script>
+</body>
+</html>
