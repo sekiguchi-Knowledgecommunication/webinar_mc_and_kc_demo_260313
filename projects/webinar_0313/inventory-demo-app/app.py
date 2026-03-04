@@ -6,7 +6,11 @@ dcc.Tabs でページ切替を実装。
 """
 
 import os
+import json
 import random
+import logging
+
+import httpx
 
 import dash
 from dash import Dash, html, dcc, callback, Input, Output, State, callback_context, no_update
@@ -19,12 +23,12 @@ import numpy as np
 # 定数・テーマ
 # ====================
 PLOTLY_THEME = {
-    "paper_bgcolor": "rgba(0,0,0,0)",
-    "plot_bgcolor": "rgba(0,0,0,0)",
-    "font": {"color": "#e5e7eb", "family": "Space Grotesk, Noto Sans JP, sans-serif", "size": 12},
+    "paper_bgcolor": "rgba(255,255,255,0)",
+    "plot_bgcolor": "rgba(255,255,255,0)",
+    "font": {"color": "#374151", "family": "Noto Sans JP, sans-serif", "size": 12},
     "margin": {"l": 40, "r": 20, "t": 30, "b": 40},
-    "xaxis": {"gridcolor": "rgba(255,255,255,0.05)", "zeroline": False},
-    "yaxis": {"gridcolor": "rgba(255,255,255,0.05)", "zeroline": False},
+    "xaxis": {"gridcolor": "rgba(0,0,0,0.06)", "zeroline": False},
+    "yaxis": {"gridcolor": "rgba(0,0,0,0.06)", "zeroline": False},
 }
 CATEGORY_COLORS = {"A": "#0ea5e9", "B": "#ef4444", "C": "#10b981", "D": "#f59e0b"}
 CATEGORY_NAMES = {"A": "機械部品", "B": "電子部品", "C": "素材・原料", "D": "包装・梱包材"}
@@ -109,23 +113,24 @@ def get_supplier_leadtime():
 app = Dash(__name__, suppress_callback_exceptions=True,
            title="在庫管理統合プラットフォーム | Databricks Lakehouse")
 
-GOOGLE_FONTS = "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap"
+GOOGLE_FONTS = "https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700;800&display=swap"
 
 
 # ====================
 # Scene 1: パイプライン概要
 # ====================
 def build_pipeline_page():
+    """Scene 1: パイプライン概要ページ"""
     stats = get_medallion_stats()
     kpi = get_kpi_summary()
 
     stages = [
-        {"name": "Raw Sources", "cls": "", "icon": "📥", "stats": "CSV / API"},
-        {"name": "Bronze", "cls": "bronze", "icon": "🥉",
+        {"name": "Raw Sources", "cls": "", "stats": "CSV / API"},
+        {"name": "Bronze", "cls": "bronze",
          "stats": f'{stats["bronze"]["tables"]} テーブル / {stats["bronze"]["total_rows"]:,} 行'},
-        {"name": "Silver", "cls": "silver", "icon": "🥈",
+        {"name": "Silver", "cls": "silver",
          "stats": f'{stats["silver"]["tables"]} テーブル / {stats["silver"]["total_rows"]:,} 行'},
-        {"name": "Gold", "cls": "gold", "icon": "🥇",
+        {"name": "Gold", "cls": "gold",
          "stats": f'{stats["gold"]["tables"]} テーブル / {stats["gold"]["total_rows"]:,} 行'},
     ]
 
@@ -134,28 +139,31 @@ def build_pipeline_page():
         if i > 0:
             flow.append(html.Span("→", className="medallion-arrow"))
         flow.append(html.Div(className=f"medallion-stage {s['cls']}", children=[
-            html.Div(s["icon"], style={"fontSize": "2rem", "marginBottom": "8px"}),
-            html.Div(s["name"], style={"fontWeight": "700", "color": "white"}),
-            html.Div(s["stats"], style={"fontSize": "0.75rem", "color": "#60a5fa", "fontWeight": "600", "marginTop": "8px"}),
+            html.Div(s["name"], style={"fontWeight": "700", "color": "#1f2937", "fontSize": "1.05rem"}),
+            html.Div(s["stats"], style={"fontSize": "0.75rem", "color": "#6b7280", "fontWeight": "600", "marginTop": "8px"}),
         ]))
 
     return html.Div([
-        html.Div(className="hero-section", children=[
+        # ヒーローセクション（animate-reveal）
+        html.Div(className="hero-section animate-reveal", children=[
             html.H1("在庫管理統合プラットフォーム", className="hero-title"),
             html.P("Databricks Lakehouse で在庫データを統合し、AI で課題の真因に切り込む", className="hero-subtitle"),
         ]),
         html.Div(style={"height": "24px"}),
-        html.Div(className="chart-panel", children=[
-            html.Div(className="chart-title", children=["🏗️ Medallion Architecture"]),
+        # Medallion Architecture パネル（animate-reveal）
+        html.Div(className="chart-panel animate-reveal", children=[
+            html.Div(className="chart-title", children=["Medallion Architecture"]),
             html.Div(className="medallion-flow", children=flow),
         ]),
         html.Div(style={"height": "16px"}),
-        html.Div(className="chart-panel", children=[
-            html.Div(className="chart-title", children=["⚡ パイプラインステータス"]),
-            html.Div(style={"display": "grid", "gridTemplateColumns": "repeat(3, 1fr)", "gap": "16px"}, children=[
-                html.Div(className="kpi-card", children=[
+        # パイプラインステータス（animate-reveal + KPI 非対称グリッド）
+        html.Div(className="chart-panel animate-reveal", children=[
+            html.Div(className="chart-title", children=["パイプラインステータス"]),
+            html.Div(style={"display": "grid", "gridTemplateColumns": "repeat(4, 1fr)", "gap": "16px"}, children=[
+                # メイン KPI: primary（2列幅で強調）
+                html.Div(className="kpi-card primary", children=[
                     html.Div("パイプライン", className="kpi-label"),
-                    html.Div("正常稼働", className="kpi-value", style={"fontSize": "1.3rem", "color": "#10b981"}),
+                    html.Div("正常稼働", className="kpi-value", style={"color": "var(--color-accent-green)"}),
                 ]),
                 html.Div(className="kpi-card", children=[
                     html.Div("品質チェック合格率", className="kpi-label"),
@@ -188,13 +196,20 @@ DASHBOARD_ID = os.environ.get(
 # 公開ダッシュボードの埋め込み URL
 EMBED_URL = f"{WORKSPACE_URL}/embed/dashboardsv3/{DASHBOARD_ID}?o=0"
 
+# AI エージェント Serving Endpoint 設定
+SERVING_ENDPOINT = os.environ.get("SERVING_ENDPOINT", "")
+logger = logging.getLogger(__name__)
+
 def build_dashboard_page():
+    """Scene 2: ダッシュボードページ（AI/BI ダッシュボード iframe）"""
     return html.Div([
-        html.H2("📊 在庫管理統合ビュー", style={"fontWeight": "800", "color": "white", "margin": "0 0 8px 0"}),
+        html.H2("在庫管理統合ビュー", className="animate-reveal",
+                style={"fontWeight": "800", "color": "var(--color-text-primary)", "margin": "0 0 8px 0"}),
         html.P("Databricks AI/BI ダッシュボードを Dash App 内にリアルタイム表示",
-               style={"color": "#9ca3af", "fontSize": "0.85rem", "margin": "0 0 16px 0"}),
+               className="animate-reveal",
+               style={"color": "var(--color-text-secondary)", "fontSize": "0.85rem", "margin": "0 0 16px 0"}),
         # iframe 埋め込み
-        html.Div(className="chart-panel", style={"padding": "0", "overflow": "hidden"}, children=[
+        html.Div(className="chart-panel animate-reveal", style={"padding": "0", "overflow": "hidden"}, children=[
             html.Iframe(
                 src=EMBED_URL,
                 style={
@@ -212,30 +227,35 @@ def build_dashboard_page():
 # Scene 5: まとめ
 # ====================
 def build_summary_page():
+    """Scene 5: まとめ + CTA ページ"""
+    demo_items = [
+        ("データ統合", "Medallion Architecture で Single Source of Truth を確立"),
+        ("統合可視化", "部門横断ダッシュボードで在庫を一画面で俯瞰"),
+        ("AI エージェント分析", "Genie API を活用した自律的データ分析"),
+        ("アクション提案", "要因分析を自動化し、具体的な改善策を生成"),
+    ]
+
     return html.Div([
-        html.H2("🎯 まとめ", style={"fontWeight": "800", "color": "white", "margin": "0 0 16px 0"}),
-        html.Div(className="chart-panel", children=[
-            html.Div(className="chart-title", children=["📋 本日のデモ"]),
-            *[html.Div(style={"display": "flex", "gap": "16px", "padding": "12px", "borderRadius": "12px",
-                               "background": "rgba(59,130,246,0.05)", "border": "1px solid rgba(59,130,246,0.1)",
-                               "marginBottom": "8px"}, children=[
-                html.Span("✅", style={"fontSize": "1.3rem"}),
-                html.Div([html.Div(t, style={"fontWeight": "700", "color": "white"}),
-                          html.Div(d, style={"fontSize": "0.85rem", "color": "#9ca3af"})]),
-            ]) for t, d in [
-                ("データ統合", "Medallion Architecture で Single Source of Truth を確立"),
-                ("統合可視化", "部門横断ダッシュボードで在庫を一画面で俯瞰"),
-                ("Genie: 自然言語探索", "SQL不要で日本語でデータを探索"),
-                ("リサーチエージェント", "要因分析を自動化、アクション提案まで生成"),
-            ]],
+        html.H2("まとめ", className="animate-reveal",
+                style={"fontWeight": "800", "color": "var(--color-text-primary)", "margin": "0 0 16px 0"}),
+        html.Div(className="chart-panel animate-reveal", children=[
+            html.Div(className="chart-title", children=["本日のデモ"]),
+            *[html.Div(style={"display": "flex", "gap": "16px", "padding": "12px 16px", "borderRadius": "8px",
+                               "background": "#f0f9ff", "border": "1px solid #e0f2fe",
+                               "marginBottom": "8px", "alignItems": "center"}, children=[
+                html.Div(style={"width": "8px", "height": "8px", "borderRadius": "50%",
+                                "background": "var(--color-accent-primary)", "flexShrink": "0"}),
+                html.Div([html.Div(t, style={"fontWeight": "700", "color": "var(--color-text-primary)"}),
+                          html.Div(d, style={"fontSize": "0.85rem", "color": "var(--color-text-secondary)"})]),
+            ]) for t, d in demo_items],
         ]),
         html.Div(style={"height": "16px"}),
-        html.Div(className="cta-section", children=[
-            html.Div("🎯", style={"fontSize": "3rem", "marginBottom": "16px"}),
-            html.Div("ワークショップに参加しませんか？", style={"fontSize": "1.3rem", "fontWeight": "800", "color": "white"}),
+        html.Div(className="cta-section animate-reveal", children=[
+            html.Div("ワークショップに参加しませんか？",
+                     style={"fontSize": "1.3rem", "fontWeight": "800"}),
             html.Div("貴社のデータで Databricks Lakehouse を半日で体験できます",
-                     style={"color": "#9ca3af", "marginTop": "8px", "marginBottom": "24px"}),
-            html.A("📝 ワークショップに申し込む", href="#", className="cta-button"),
+                     style={"color": "rgba(255,255,255,0.8)", "marginTop": "8px", "marginBottom": "24px"}),
+            html.A("ワークショップに申し込む", href="#", className="cta-button"),
         ]),
     ])
 
@@ -246,42 +266,43 @@ def build_summary_page():
 app.layout = html.Div([
     html.Link(rel="stylesheet", href=GOOGLE_FONTS),
     # ヘッダー
+    # ヘッダー（アイコン削除済み）
     html.Div(className="app-header", children=[
         html.Div(style={"display": "flex", "justifyContent": "space-between", "alignItems": "center",
                          "height": "60px", "padding": "0 24px"}, children=[
             html.Div(style={"display": "flex", "alignItems": "center", "gap": "12px"}, children=[
-                html.Span("📦", style={"fontSize": "1.5rem"}),
-                html.Span("在庫管理統合プラットフォーム", style={"fontSize": "1.1rem", "fontWeight": "700", "color": "white"}),
-                html.Span("DEMO", style={"fontSize": "0.7rem", "fontWeight": "600", "color": "#60a5fa",
-                                         "background": "rgba(59,130,246,0.15)", "padding": "2px 8px", "borderRadius": "4px"}),
+                html.Span("在庫管理統合プラットフォーム",
+                          style={"fontSize": "1.1rem", "fontWeight": "700", "color": "var(--color-text-primary)"}),
+                html.Span("DEMO", style={"fontSize": "0.7rem", "fontWeight": "600", "color": "var(--color-accent-primary)",
+                                         "background": "#e0f2fe", "padding": "2px 8px", "borderRadius": "4px"}),
             ]),
         ]),
     ]),
-    # タブナビゲーション
+    # タブナビゲーション（アイコン削除済み）
     html.Div(style={"padding": "0 24px", "maxWidth": "1400px", "margin": "0 auto"}, children=[
         dcc.Tabs(id="page-tabs", value="pipeline", style={"marginTop": "16px"}, children=[
-            dcc.Tab(label="🏠 パイプライン概要", value="pipeline",
-                    style={"color": "#9ca3af", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
-                    selected_style={"color": "#60a5fa", "backgroundColor": "rgba(59,130,246,0.1)",
-                                    "border": "none", "borderBottom": "2px solid #3b82f6", "padding": "10px 20px"}),
-            dcc.Tab(label="📊 ダッシュボード", value="dashboard",
-                    style={"color": "#9ca3af", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
-                    selected_style={"color": "#60a5fa", "backgroundColor": "rgba(59,130,246,0.1)",
-                                    "border": "none", "borderBottom": "2px solid #3b82f6", "padding": "10px 20px"}),
-            dcc.Tab(label="🤖 AI エージェント", value="agent",
-                    style={"color": "#9ca3af", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
-                    selected_style={"color": "#60a5fa", "backgroundColor": "rgba(59,130,246,0.1)",
-                                    "border": "none", "borderBottom": "2px solid #3b82f6", "padding": "10px 20px"}),
-            dcc.Tab(label="🎯 まとめ", value="summary",
-                    style={"color": "#9ca3af", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
-                    selected_style={"color": "#60a5fa", "backgroundColor": "rgba(59,130,246,0.1)",
-                                    "border": "none", "borderBottom": "2px solid #3b82f6", "padding": "10px 20px"}),
+            dcc.Tab(label="パイプライン概要", value="pipeline",
+                    style={"color": "#6b7280", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
+                    selected_style={"color": "var(--color-accent-primary)", "backgroundColor": "#f0f9ff",
+                                    "border": "none", "borderBottom": "2px solid var(--color-accent-primary)", "padding": "10px 20px"}),
+            dcc.Tab(label="ダッシュボード", value="dashboard",
+                    style={"color": "#6b7280", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
+                    selected_style={"color": "var(--color-accent-primary)", "backgroundColor": "#f0f9ff",
+                                    "border": "none", "borderBottom": "2px solid var(--color-accent-primary)", "padding": "10px 20px"}),
+            dcc.Tab(label="AI エージェント", value="agent",
+                    style={"color": "#6b7280", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
+                    selected_style={"color": "var(--color-accent-primary)", "backgroundColor": "#f0f9ff",
+                                    "border": "none", "borderBottom": "2px solid var(--color-accent-primary)", "padding": "10px 20px"}),
+            dcc.Tab(label="まとめ", value="summary",
+                    style={"color": "#6b7280", "backgroundColor": "transparent", "border": "none", "padding": "10px 20px"},
+                    selected_style={"color": "var(--color-accent-primary)", "backgroundColor": "#f0f9ff",
+                                    "border": "none", "borderBottom": "2px solid var(--color-accent-primary)", "padding": "10px 20px"}),
         ]),
         html.Div(id="page-content", style={"paddingTop": "24px"}),
     ]),
     # フッター
-    html.Div(style={"padding": "24px", "textAlign": "center", "borderTop": "1px solid rgba(255,255,255,0.05)", "marginTop": "48px"},
-             children=[html.Span("Powered by Databricks Lakehouse Platform", style={"fontSize": "0.85rem", "color": "#6b7280"})]),
+    html.Div(style={"padding": "24px", "textAlign": "center", "borderTop": "1px solid #e5e7eb", "marginTop": "48px"},
+             children=[html.Span("Powered by Databricks Lakehouse Platform", style={"fontSize": "0.85rem", "color": "#9ca3af"})]),
 ])
 
 
@@ -302,18 +323,28 @@ def render_page(tab):
 # Scene 3: AI エージェントチャット
 # ====================
 def build_agent_page():
-    """AI エージェントチャット UI"""
-    initial_msg = html.Div(className="chat-message assistant-msg", children=[
-        html.Div("🤖", style={"fontSize": "1.5rem", "marginRight": "12px"}),
+    """Scene 3: AI エージェントチャット UI"""
+    # ウェルカムカード（m-4: 空の状態デザイン改善）
+    welcome_card = html.Div(className="chat-message assistant-msg", children=[
         html.Div(children=[
-            html.Strong("在庫分析アシスタント"),
-            html.P("こんにちは！在庫データについて何でもお聞きください。", style={"margin": "4px 0 8px"}),
+            # ウェルカムヘッダー
+            html.Div(style={"marginBottom": "12px"}, children=[
+                html.Div("在庫分析アシスタント",
+                         style={"fontFamily": "var(--font-display)", "fontWeight": "700",
+                                "fontSize": "1.1rem", "color": "var(--color-text-primary)", "marginBottom": "4px"}),
+                html.Div("Genie API を活用し、在庫データの分析とインサイトの提供を行います。",
+                         style={"fontSize": "0.85rem", "color": "var(--color-text-secondary)", "lineHeight": "1.6"}),
+            ]),
+            # サジェスチョンチップ
+            html.Div("質問の例:", style={"fontSize": "0.75rem", "color": "#6b7280",
+                                        "textTransform": "uppercase", "letterSpacing": "0.05em",
+                                        "marginBottom": "8px", "fontWeight": "600"}),
             html.Div(style={"display": "flex", "gap": "8px", "flexWrap": "wrap"}, children=[
                 html.Button(q, id={"type": "suggestion-btn", "index": i},
                             className="suggestion-chip",
-                            style={"padding": "6px 14px", "borderRadius": "20px",
-                                   "border": "1px solid rgba(96,165,250,0.3)",
-                                   "background": "rgba(59,130,246,0.08)", "color": "#93c5fd",
+                            style={"padding": "8px 16px", "borderRadius": "20px",
+                                   "border": "1px solid #bae6fd",
+                                   "background": "#f0f9ff", "color": "#0369a1",
                                    "fontSize": "0.8rem", "cursor": "pointer"})
                 for i, q in enumerate([
                     "在庫総額の概要を教えて",
@@ -326,16 +357,20 @@ def build_agent_page():
     ])
 
     return html.Div([
-        html.H2("🤖 在庫分析 AI エージェント", style={"fontWeight": "800", "color": "white", "margin": "0 0 4px"}),
+        html.H2("在庫分析 AI エージェント", className="animate-reveal",
+                style={"fontWeight": "800", "color": "var(--color-text-primary)", "margin": "0 0 4px"}),
         html.P("Genie API を活用し、自然言語で在庫データを分析",
-               style={"color": "#9ca3af", "fontSize": "0.85rem", "margin": "0 0 16px"}),
-        # チャットエリア
-        html.Div(className="chart-panel", style={"padding": "0", "display": "flex", "flexDirection": "column", "height": "70vh"}, children=[
+               className="animate-reveal",
+               style={"color": "var(--color-text-secondary)", "fontSize": "0.85rem", "margin": "0 0 16px"}),
+        # チャットエリア（animate-reveal）
+        html.Div(className="chart-panel animate-reveal",
+                 style={"padding": "0", "display": "flex", "flexDirection": "column", "height": "70vh",
+                        "borderLeft": "3px solid var(--color-accent-primary)"}, children=[
             # メッセージ表示エリア
             html.Div(id="chat-messages", style={
                 "flex": "1", "overflowY": "auto", "padding": "20px",
                 "display": "flex", "flexDirection": "column", "gap": "16px",
-            }, children=[initial_msg]),
+            }, children=[welcome_card]),
             # 入力エリア
             html.Div(style={
                 "padding": "16px 20px",
@@ -345,15 +380,15 @@ def build_agent_page():
                 dcc.Input(id="chat-input", type="text",
                           placeholder="在庫について質問してください...",
                           style={"flex": "1", "padding": "12px 16px",
-                                 "background": "rgba(255,255,255,0.05)",
-                                 "border": "1px solid rgba(255,255,255,0.1)",
-                                 "borderRadius": "12px", "color": "#e5e7eb",
+                                 "background": "#f9fafb",
+                                 "border": "1px solid #e5e7eb",
+                                 "borderRadius": "12px", "color": "#1f2937",
                                  "fontSize": "0.95rem", "outline": "none"},
                           debounce=True),
+                # 送信ボタン
                 html.Button("送信", id="chat-send-btn",
                             style={"padding": "12px 24px",
-                                   "background": "linear-gradient(135deg, #3b82f6, #8b5cf6)",
-                                   "color": "white", "border": "none", "borderRadius": "12px",
+                                   "color": "white", "border": "none", "borderRadius": "8px",
                                    "fontWeight": "600", "cursor": "pointer", "fontSize": "0.95rem"}),
             ]),
         ]),
@@ -374,7 +409,7 @@ def build_agent_page():
     prevent_initial_call=True,
 )
 def handle_chat(n_clicks, n_submit, user_input, current_messages, history):
-    """AI エージェントチャットのコールバック"""
+    """AI エージェントチャットのコールバック — Serving Endpoint 経由"""
     if not user_input or not user_input.strip():
         return no_update, no_update, no_update
 
@@ -385,35 +420,99 @@ def handle_chat(n_clicks, n_submit, user_input, current_messages, history):
         "alignSelf": "flex-end", "maxWidth": "75%",
     }, children=[
         html.Div(question, style={
-            "background": "linear-gradient(135deg, #3b82f6, #8b5cf6)",
+            "background": "var(--color-accent-primary)",
             "padding": "12px 16px", "borderRadius": "16px 16px 4px 16px",
             "color": "white", "lineHeight": "1.6",
         }),
     ])
 
-    # Genie API でデータ取得
-    from tools.genie_tool import query_genie
-    genie_result = query_genie(question)
+    # エージェントからの応答を取得
+    agent_result = _call_agent(question, history)
 
     # アシスタントメッセージを作成
     assistant_msg = html.Div(className="chat-message assistant-msg", children=[
-        html.Div("🤖", style={"fontSize": "1.5rem", "marginRight": "12px", "flexShrink": "0"}),
         html.Div(children=[
-            html.Pre(genie_result, style={
+            html.Pre(agent_result, style={
                 "whiteSpace": "pre-wrap", "wordWrap": "break-word",
-                "fontFamily": "'Inter', 'Noto Sans JP', monospace",
+                "fontFamily": "var(--font-body)",
                 "fontSize": "0.9rem", "lineHeight": "1.7",
-                "margin": "0", "color": "#e5e7eb",
+                "margin": "0", "color": "var(--color-text-primary)",
             }),
         ]),
     ])
 
     # 履歴更新
     new_history = history + [{"role": "user", "content": question},
-                             {"role": "assistant", "content": genie_result}]
+                             {"role": "assistant", "content": agent_result}]
     new_messages = current_messages + [user_msg, assistant_msg]
 
     return new_messages, new_history, ""
+
+
+def _call_agent(question: str, history: list) -> str:
+    """
+    AI エージェントを呼び出す。
+    Serving Endpoint が設定されている場合は REST API 経由、
+    未設定の場合は Genie ツール直接呼び出し（フォールバック）。
+    """
+    if SERVING_ENDPOINT:
+        return _call_serving_endpoint(question, history)
+    else:
+        # フォールバック: Genie ツールを直接呼び出し
+        logger.info("SERVING_ENDPOINT 未設定 — フォールバックモードで Genie を直接呼び出し")
+        from tools.genie_tool import query_genie
+        return query_genie(question)
+
+
+def _call_serving_endpoint(question: str, history: list) -> str:
+    """
+    Serving Endpoint の REST API を呼び出してエージェント応答を取得。
+    Databricks Apps 内からは DATABRICKS_TOKEN が自動設定される。
+    """
+    # 会話履歴 + 新しい質問を messages 形式で構築
+    messages = history + [{"role": "user", "content": question}]
+
+    # Endpoint URL を構築
+    endpoint_url = f"{WORKSPACE_URL}/serving-endpoints/{SERVING_ENDPOINT}/invocations"
+
+    # Databricks Apps 内ではトークンが自動設定される
+    token = os.environ.get("DATABRICKS_TOKEN", "")
+
+    try:
+        response = httpx.post(
+            endpoint_url,
+            json={
+                "messages": messages,
+            },
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            },
+            timeout=120.0,  # エージェントは複数ステップ実行するためタイムアウトを長めに
+        )
+        response.raise_for_status()
+
+        result = response.json()
+
+        # レスポンス形式に応じてテキストを抽出
+        if "choices" in result:
+            # Chat Completions 形式
+            return result["choices"][0]["message"]["content"]
+        elif "messages" in result:
+            # MLflow ChatAgent 形式
+            return result["messages"][-1]["content"]
+        elif "predictions" in result:
+            # 旧形式
+            return str(result["predictions"])
+        else:
+            return json.dumps(result, ensure_ascii=False, indent=2)
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Serving Endpoint HTTP エラー: {e.response.status_code} — {e.response.text[:200]}")
+        return f"エージェントへの接続でエラーが発生しました（HTTP {e.response.status_code}）。\nもう一度お試しください。"
+    except Exception as e:
+        logger.error(f"Serving Endpoint 呼び出しエラー: {e}")
+        return f"エージェントへの接続でエラーが発生しました: {str(e)}\nもう一度お試しください。"
 
 
 server = app.server
