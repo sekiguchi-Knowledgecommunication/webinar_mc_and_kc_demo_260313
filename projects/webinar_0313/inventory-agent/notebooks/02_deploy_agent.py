@@ -33,12 +33,6 @@ import mlflow
 WORKSPACE_ROOT = "/Workspace/Users/s.sekiguchi7056@gmail.com/10.webinar/webinar_mc_and_kc_demo_260313"
 AGENT_PATH = f"{WORKSPACE_ROOT}/projects/webinar_0313/inventory-agent"
 
-# Unity Catalog の登録先（実在するカタログ・スキーマを指定）
-UC_MODEL_NAME = "prod_manufacturing.gold.inventory_agent"
-
-# Serving Endpoint 名
-ENDPOINT_NAME = "inventory-agent-endpoint"
-
 # ============================================
 # 📄 env.conf から設定を読み込み
 # ============================================
@@ -58,6 +52,12 @@ def load_env_conf(path):
         print(f"⚠️ env.conf が見つかりません: {path}")
 
 load_env_conf(ENV_CONF_PATH)
+
+# env.conf から UC 登録先と Endpoint 名を取得
+UC_CATALOG = os.environ.get("UC_CATALOG", "prod_manufacturing")
+UC_SCHEMA = os.environ.get("UC_SCHEMA", "gold")
+UC_MODEL_NAME = f"{UC_CATALOG}.{UC_SCHEMA}.inventory_agent"
+ENDPOINT_NAME = os.environ.get("ENDPOINT_NAME", "inventory-agent-endpoint")
 
 # Databricks AI Gateway 接続設定
 host = spark.conf.get("spark.databricks.workspaceUrl", "")
