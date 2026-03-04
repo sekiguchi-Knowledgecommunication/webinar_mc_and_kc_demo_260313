@@ -9,15 +9,18 @@
 # COMMAND ----------
 
 # 依存関係のインストール
-%pip install openai-agents>=0.0.5 mlflow[databricks]>=2.20.0 databricks-sdk>=0.40.0
+%pip install openai-agents>=0.0.5 mlflow[databricks]>=2.20.0 databricks-sdk>=0.40.0 nest_asyncio
 dbutils.library.restartPython()
 
 # COMMAND ----------
 
 import os
 import sys
-import asyncio
 import logging
+import nest_asyncio
+
+# Databricks ノートブックは既にイベントループが動いているため nest_asyncio で対応
+nest_asyncio.apply()
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
@@ -49,6 +52,8 @@ print(f"   ツール: {[t.name for t in inventory_agent.tools]}")
 # MAGIC ## テスト 1: メインデモ質問（5ステップ分析）
 
 # COMMAND ----------
+
+import asyncio
 
 result = asyncio.run(
     Runner.run(inventory_agent, input="在庫過多の要因を分析し、改善アクションを提案してください")
