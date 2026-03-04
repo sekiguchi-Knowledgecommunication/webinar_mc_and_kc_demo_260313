@@ -44,6 +44,8 @@ except FileNotFoundError:
 
 # Genie ツール読み込み
 from tools.genie_tool import query_genie
+from tools.report_tool import generate_report
+from tools.order_proposal_tool import create_order_proposal
 
 
 @function_tool
@@ -93,6 +95,8 @@ inventory_agent = Agent(
     tools=[
         query_inventory_data,
         report_step,
+        generate_report,
+        create_order_proposal,
     ],
     model=MODEL_NAME,
     model_settings=ModelSettings(
