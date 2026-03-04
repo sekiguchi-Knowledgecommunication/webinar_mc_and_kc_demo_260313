@@ -98,9 +98,14 @@ def _insert_to_delta(
 
         w = WorkspaceClient()
 
+        # テーブル名を取得
+        catalog = os.environ.get("DATABRICKS_CATALOG", "prod_manufacturing")
+        schema = os.environ.get("DATABRICKS_SCHEMA", "gold")
+        table_name = f"{catalog}.{schema}.order_proposals"
+
         # INSERT SQL を構築
         sql = f"""
-        INSERT INTO prod_manufacturing.gold.order_proposals
+        INSERT INTO {table_name}
         (proposal_id, created_at, item_id, item_name, category,
          current_stock, recommended_order_qty, reason, priority, status, created_by)
         VALUES

@@ -33,7 +33,12 @@ PROMPT_DIR = pathlib.Path(__file__).parent / "prompts"
 PROMPT_PATH = PROMPT_DIR / "system_prompt.md"
 
 try:
-    SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8")
+    raw_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    # 環境変数から取得（未設定時はデフォルト値を使用）
+    CATALOG = os.environ.get("DATABRICKS_CATALOG", "prod_manufacturing")
+    SCHEMA = os.environ.get("DATABRICKS_SCHEMA", "gold")
+    # プロンプト内のプレースホルダを置換
+    SYSTEM_PROMPT = raw_prompt.replace("{catalog}", CATALOG).replace("{schema}", SCHEMA)
 except FileNotFoundError:
     SYSTEM_PROMPT = "あなたは製造業の在庫管理に特化した分析エージェントです。日本語で応答してください。"
 
