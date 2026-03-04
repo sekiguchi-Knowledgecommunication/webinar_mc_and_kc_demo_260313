@@ -12,7 +12,6 @@ import logging
 
 import mlflow
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.dashboards import GenieStartConversationMessageRequest
 
 logger = logging.getLogger(__name__)
 
