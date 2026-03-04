@@ -3,13 +3,14 @@ Genie ツール — Databricks Genie Space への問い合わせ
 
 Genie API を使用して自然言語でデータに問い合わせを行い、
 結果を構造化データとして返す。
+MLflow トレースで各クエリを自動記録。
 """
 
 import os
 import time
-import json
 import logging
 
+import mlflow
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.dashboards import GenieStartConversationMessageRequest
 
@@ -30,39 +31,51 @@ def query_genie(question: str) -> str:
         Genie の応答テキスト（SQL 結果含む）
     """
     if not GENIE_SPACE_ID:
+        logger.info(f"Genie Space 未設定 — フォールバックモードで応答: {question[:50]}...")
         return _fallback_response(question)
 
     try:
-        w = WorkspaceClient()
+        # MLflow トレースで Genie クエリを記録
+        with mlflow.start_span(name="genie_query") as span:
+            span.set_inputs({"question": question, "space_id": GENIE_SPACE_ID})
 
-        # Genie に質問を送信
-        response = w.genie.start_conversation(
-            space_id=GENIE_SPACE_ID,
-            content=question,
-        )
+            w = WorkspaceClient()
 
-        # 会話 ID を取得
-        conversation_id = response.conversation_id
-        message_id = response.message_id
-
-        # ポーリングで結果を待つ（最大30秒）
-        for _ in range(15):
-            time.sleep(2)
-            result = w.genie.get_message(
+            # Genie に質問を送信
+            response = w.genie.start_conversation(
                 space_id=GENIE_SPACE_ID,
-                conversation_id=conversation_id,
-                message_id=message_id,
+                content=question,
             )
 
-            if result.status and result.status.value in ("COMPLETED", "FAILED"):
-                break
+            # 会話 ID を取得
+            conversation_id = response.conversation_id
+            message_id = response.message_id
+            span.set_attribute("conversation_id", conversation_id)
+            span.set_attribute("message_id", message_id)
 
-        # 結果を整形
-        if result.status and result.status.value == "COMPLETED":
-            return _format_genie_result(result)
-        else:
-            logger.warning(f"Genie が応答を完了しませんでした: {result.status}")
-            return _fallback_response(question)
+            # ポーリングで結果を待つ（最大30秒）
+            result = None
+            for attempt in range(15):
+                time.sleep(2)
+                result = w.genie.get_message(
+                    space_id=GENIE_SPACE_ID,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                )
+
+                if result.status and result.status.value in ("COMPLETED", "FAILED"):
+                    break
+
+            # 結果を整形
+            if result and result.status and result.status.value == "COMPLETED":
+                result_text = _format_genie_result(result)
+                span.set_outputs({"status": "COMPLETED", "result_length": len(result_text)})
+                return result_text
+            else:
+                status_val = result.status.value if result and result.status else "UNKNOWN"
+                logger.warning(f"Genie が応答を完了しませんでした: {status_val}")
+                span.set_outputs({"status": status_val, "fallback": True})
+                return _fallback_response(question)
 
     except Exception as e:
         logger.error(f"Genie API エラー: {e}")
@@ -107,7 +120,7 @@ def _fallback_response(question: str) -> str:
     """Genie Space が未設定の場合のフォールバック（デモ用ダミーデータ）"""
     question_lower = question.lower()
 
-    if "在庫" in question and ("総額" in question or "全体" in question or "概要" in question):
+    if "在庫" in question and ("総額" in question or "全体" in question or "概要" in question or "サマリ" in question or "金額" in question):
         return """【在庫総額の概要】
 
 | カテゴリ | 品目名 | 在庫金額（円） | 構成比 |

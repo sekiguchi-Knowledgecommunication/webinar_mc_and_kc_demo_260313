@@ -9,7 +9,7 @@ import os
 import pathlib
 import logging
 
-from agents import Agent, function_tool
+from agents import Agent, ModelSettings, function_tool
 from tools.genie_tool import query_genie
 
 logger = logging.getLogger(__name__)
@@ -27,51 +27,37 @@ except FileNotFoundError:
 # ====================
 
 @function_tool
-def get_inventory_overview(question: str = "今月の在庫金額の全体像を教えてください") -> str:
+def query_inventory_data(question: str) -> str:
     """
-    在庫の全体概要を取得する。在庫総額、カテゴリ別構成比、品目数などを確認する。
-    """
-    return query_genie(question)
-
-
-@function_tool
-def find_overstock_items(question: str = "過剰在庫品目の一覧を滞留日数の降順で教えてください") -> str:
-    """
-    過剰在庫品目（滞留日数が長い品目）を検索する。回転率や滞留日数でフィルタリング可能。
+    在庫データに自然言語で問い合わせる汎用ツール。
+    Genie が SQL を自動生成・実行し、結果をテーブル形式で返す。
+    在庫サマリ、過剰在庫アラート、回転率分析、リードタイム、
+    需要予測と実績の比較など、あらゆる在庫データの問い合わせに使用する。
     """
     return query_genie(question)
 
 
 @function_tool
-def analyze_demand_gap(question: str = "需要予測と実績の乖離が大きい品目を教えてください") -> str:
+def report_step(step_number: int, step_title: str, step_detail: str) -> str:
     """
-    需要予測と実績の乖離を分析する。予測精度やギャップ率でソート可能。
-    """
-    return query_genie(question)
+    分析の各ステップをユーザーに通知するためのツール。
+    データ取得や分析を開始する前に必ずこのツールを呼び出して、
+    今から何をするかをユーザーに伝えること。
 
-
-@function_tool
-def check_supplier_leadtime(question: str = "サプライヤー別の平均入荷リードタイムを教えてください") -> str:
+    Args:
+        step_number: ステップ番号（1〜5）
+        step_title: ステップのタイトル（例: "在庫サマリを取得"）
+        step_detail: ステップの詳細説明（例: "カテゴリ別の在庫金額を確認します"）
     """
-    サプライヤー別の入荷リードタイムを確認する。カテゴリ別の比較も可能。
-    """
-    return query_genie(question)
-
-
-@function_tool
-def custom_data_query(question: str) -> str:
-    """
-    在庫データに対する任意の分析クエリを実行する。
-    自然言語で質問を指定すると、Genie が SQL を生成して実行する。
-    """
-    return query_genie(question)
+    logger.info(f"📍 Step {step_number}: {step_title} — {step_detail}")
+    return f"✅ Step {step_number}: {step_title}"
 
 
 # ====================
 # エージェント定義
 # ====================
 
-# 使用するモデル（Databricks 上の Foundation Model）
+# 使用するモデル（Databricks AI Gateway 経由）
 MODEL_NAME = os.environ.get(
     "AGENT_MODEL",
     "databricks-meta-llama-3-1-70b-instruct"
@@ -82,11 +68,11 @@ inventory_agent = Agent(
     name="在庫分析アシスタント",
     instructions=SYSTEM_PROMPT,
     tools=[
-        get_inventory_overview,
-        find_overstock_items,
-        analyze_demand_gap,
-        check_supplier_leadtime,
-        custom_data_query,
+        query_inventory_data,
+        report_step,
     ],
     model=MODEL_NAME,
+    model_settings=ModelSettings(
+        max_tokens=4096,
+    ),
 )

@@ -9,3 +9,5 @@ env:
     description: "Genie Space の ID（Databricks Workspace で作成後に設定）"
   - name: DATABRICKS_HOST
     description: "Databricks Workspace のホスト URL"
+  - name: AGENT_MODEL
+    description: "使用する LLM モデル名（デフォルト: databricks-meta-llama-3-1-70b-instruct）"
