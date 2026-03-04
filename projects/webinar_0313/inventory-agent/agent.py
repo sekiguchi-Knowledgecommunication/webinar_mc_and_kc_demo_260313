@@ -106,8 +106,48 @@ inventory_agent = Agent(
         max_tokens=4096,
     ),
 )
+# ====================
+# MLflow PythonModel ラッパー
+# ====================
 
-# MLflow コードベースログ用: このファイルのモデルオブジェクトを登録
+import asyncio
 import mlflow
-mlflow.models.set_model(inventory_agent)
 
+class InventoryAgentModel(mlflow.pyfunc.PythonModel):
+    """
+    OpenAI Agents SDK のエージェントを MLflow PythonModel として
+    ラップするクラス。Serving Endpoint から呼び出し可能にする。
+    """
+
+    def predict(self, context, model_input, params=None):
+        """
+        model_input: DataFrame with 'messages' column (list of dicts)
+        返り値: エージェントの応答テキスト
+        """
+        import nest_asyncio
+        nest_asyncio.apply()
+
+        from agents import Runner
+
+        # 入力メッセージを取得
+        if hasattr(model_input, "to_dict"):
+            # DataFrame 形式
+            records = model_input.to_dict(orient="records")
+            messages = records[0].get("messages", [])
+        elif isinstance(model_input, dict):
+            messages = model_input.get("messages", [])
+        elif isinstance(model_input, list):
+            messages = model_input
+        else:
+            messages = [{"role": "user", "content": str(model_input)}]
+
+        # エージェントを実行
+        result = asyncio.run(
+            Runner.run(inventory_agent, input=messages)
+        )
+
+        return {"content": result.final_output}
+
+
+# MLflow にラッパーモデルを登録
+mlflow.models.set_model(InventoryAgentModel())

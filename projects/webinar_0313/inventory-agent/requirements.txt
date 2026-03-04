@@ -4,3 +4,4 @@ openai-agents>=0.0.5
 databricks-sdk>=0.40.0
 pandas>=2.0.0
 numpy>=1.24.0
+nest_asyncio
