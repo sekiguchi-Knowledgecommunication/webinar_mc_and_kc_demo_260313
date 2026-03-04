@@ -114,7 +114,7 @@ print(followup.final_output)
 # COMMAND ----------
 
 simple = asyncio.run(
-    Runner.run(inventory_agent, input="こんにちは、何ができますか？")
+    Runner.run(inventory_agent, input="あなたは何ができるエージェントですか？在庫分析の機能を教えてください。")
 )
 print("📊 シンプルな応答:")
 print(simple.final_output)
