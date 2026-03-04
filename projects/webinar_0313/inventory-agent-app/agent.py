@@ -1,23 +1,44 @@
 """
-在庫分析 AI エージェント — メインエージェント定義
+在庫分析 AI エージェント — Databricks 公式パターン準拠
 
-OpenAI Agents SDK を使用し、Genie API ツールで
-在庫データを自律的に探索・分析するエージェント。
+AsyncDatabricksOpenAI + OpenAI Agents SDK で構成。
+Databricks Apps 内で直接実行（Serving Endpoint 不要）。
 """
 
 import os
-import pathlib
 import logging
+import pathlib
 
-from agents import Agent, ModelSettings, function_tool
-from tools.genie_tool import query_genie
+from databricks_openai import AsyncDatabricksOpenAI
+from agents import Agent, ModelSettings, Runner, function_tool
+from agents import set_default_openai_client, set_default_openai_api
 
 logger = logging.getLogger(__name__)
 
-# システムプロンプトをファイルから読み込み
-PROMPT_PATH = pathlib.Path(__file__).parent / "prompts" / "system_prompt.md"
+
+# ====================
+# Databricks AI Gateway 設定（公式パターン）
+# ====================
+
+# Databricks 専用 OpenAI クライアント（認証自動管理）
+set_default_openai_client(AsyncDatabricksOpenAI())
+set_default_openai_api("chat_completions")
+
+
+# ====================
+# システムプロンプト
+# ====================
+
+PROMPT_DIR = pathlib.Path(__file__).parent / "prompts"
+PROMPT_PATH = PROMPT_DIR / "system_prompt.md"
+
 try:
-    SYSTEM_PROMPT = PROMPT_PATH.read_text(encoding="utf-8")
+    raw_prompt = PROMPT_PATH.read_text(encoding="utf-8")
+    # 環境変数から取得（未設定時はデフォルト値を使用）
+    CATALOG = os.environ.get("DATABRICKS_CATALOG", "apps_demo_catalog")
+    SCHEMA = os.environ.get("DATABRICKS_SCHEMA", "webinar_demo_0313")
+    # プロンプト内のプレースホルダを置換
+    SYSTEM_PROMPT = raw_prompt.replace("{catalog}", CATALOG).replace("{schema}", SCHEMA)
 except FileNotFoundError:
     SYSTEM_PROMPT = "あなたは製造業の在庫管理に特化した分析エージェントです。日本語で応答してください。"
 
@@ -25,6 +46,12 @@ except FileNotFoundError:
 # ====================
 # ツール定義
 # ====================
+
+# Genie ツール読み込み
+from tools.genie_tool import query_genie
+from tools.report_tool import generate_report
+from tools.order_proposal_tool import create_order_proposal
+
 
 @function_tool
 def query_inventory_data(question: str) -> str:
@@ -54,22 +81,27 @@ def report_step(step_number: int, step_title: str, step_detail: str) -> str:
 
 
 # ====================
+# モデル設定
+# ====================
+
+MODEL_NAME = os.environ.get(
+    "AGENT_MODEL",
+    "databricks-meta-llama-3-3-70b-instruct"
+)
+
+
+# ====================
 # エージェント定義
 # ====================
 
-# 使用するモデル（Databricks AI Gateway 経由）
-MODEL_NAME = os.environ.get(
-    "AGENT_MODEL",
-    "databricks-meta-llama-3-1-70b-instruct"
-)
-
-# 在庫分析エージェント
 inventory_agent = Agent(
     name="在庫分析アシスタント",
     instructions=SYSTEM_PROMPT,
     tools=[
         query_inventory_data,
         report_step,
+        generate_report,
+        create_order_proposal,
     ],
     model=MODEL_NAME,
     model_settings=ModelSettings(

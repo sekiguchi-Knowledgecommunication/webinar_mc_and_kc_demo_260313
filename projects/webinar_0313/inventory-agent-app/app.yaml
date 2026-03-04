@@ -10,4 +10,11 @@ env:
   - name: DATABRICKS_HOST
     description: "Databricks Workspace のホスト URL"
   - name: AGENT_MODEL
-    description: "使用する LLM モデル名（デフォルト: databricks-meta-llama-3-1-70b-instruct）"
+    description: "使用する LLM モデル名（デフォルト: databricks-meta-llama-3-3-70b-instruct）"
+    value: "databricks-meta-llama-3-3-70b-instruct"
+  - name: DATABRICKS_CATALOG
+    description: "データが格納されているカタログ名"
+    value: "apps_demo_catalog"
+  - name: DATABRICKS_SCHEMA
+    description: "データが格納されているスキーマ名"
+    value: "webinar_demo_0313"

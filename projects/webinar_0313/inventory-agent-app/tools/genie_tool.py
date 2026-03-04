@@ -3,16 +3,11 @@ Genie ツール — Databricks Genie Space への問い合わせ
 
 Genie API を使用して自然言語でデータに問い合わせを行い、
 結果を構造化データとして返す。
-MLflow トレースで各クエリを自動記録。
 """
 
 import os
 import time
 import logging
-
-import mlflow
-from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.dashboards import GenieStartConversationMessageRequest
 
 logger = logging.getLogger(__name__)
 
@@ -31,51 +26,42 @@ def query_genie(question: str) -> str:
         Genie の応答テキスト（SQL 結果含む）
     """
     if not GENIE_SPACE_ID:
-        logger.info(f"Genie Space 未設定 — フォールバックモードで応答: {question[:50]}...")
         return _fallback_response(question)
 
     try:
-        # MLflow トレースで Genie クエリを記録
-        with mlflow.start_span(name="genie_query") as span:
-            span.set_inputs({"question": question, "space_id": GENIE_SPACE_ID})
+        from databricks.sdk import WorkspaceClient
 
-            w = WorkspaceClient()
+        w = WorkspaceClient()
 
-            # Genie に質問を送信
-            response = w.genie.start_conversation(
+        # Genie に質問を送信
+        response = w.genie.start_conversation(
+            space_id=GENIE_SPACE_ID,
+            content=question,
+        )
+
+        # 会話 ID を取得
+        conversation_id = response.conversation_id
+        message_id = response.message_id
+
+        # ポーリングで結果を待つ（最大30秒）
+        result = None
+        for _ in range(15):
+            time.sleep(2)
+            result = w.genie.get_message(
                 space_id=GENIE_SPACE_ID,
-                content=question,
+                conversation_id=conversation_id,
+                message_id=message_id,
             )
 
-            # 会話 ID を取得
-            conversation_id = response.conversation_id
-            message_id = response.message_id
-            span.set_attribute("conversation_id", conversation_id)
-            span.set_attribute("message_id", message_id)
+            if result.status and result.status.value in ("COMPLETED", "FAILED"):
+                break
 
-            # ポーリングで結果を待つ（最大30秒）
-            result = None
-            for attempt in range(15):
-                time.sleep(2)
-                result = w.genie.get_message(
-                    space_id=GENIE_SPACE_ID,
-                    conversation_id=conversation_id,
-                    message_id=message_id,
-                )
-
-                if result.status and result.status.value in ("COMPLETED", "FAILED"):
-                    break
-
-            # 結果を整形
-            if result and result.status and result.status.value == "COMPLETED":
-                result_text = _format_genie_result(result)
-                span.set_outputs({"status": "COMPLETED", "result_length": len(result_text)})
-                return result_text
-            else:
-                status_val = result.status.value if result and result.status else "UNKNOWN"
-                logger.warning(f"Genie が応答を完了しませんでした: {status_val}")
-                span.set_outputs({"status": status_val, "fallback": True})
-                return _fallback_response(question)
+        # 結果を整形
+        if result and result.status and result.status.value == "COMPLETED":
+            return _format_genie_result(result)
+        else:
+            logger.warning(f"Genie が応答を完了しませんでした: {getattr(result, 'status', 'unknown')}")
+            return _fallback_response(question)
 
     except Exception as e:
         logger.error(f"Genie API エラー: {e}")
@@ -118,9 +104,9 @@ def _format_genie_result(result) -> str:
 
 def _fallback_response(question: str) -> str:
     """Genie Space が未設定の場合のフォールバック（デモ用ダミーデータ）"""
-    question_lower = question.lower()
+    q = question.lower()
 
-    if "在庫" in question and ("総額" in question or "全体" in question or "概要" in question or "サマリ" in question or "金額" in question):
+    if "在庫" in q and ("総額" in q or "全体" in q or "概要" in q):
         return """【在庫総額の概要】
 
 | カテゴリ | 品目名 | 在庫金額（円） | 構成比 |
@@ -133,7 +119,7 @@ def _fallback_response(question: str) -> str:
 合計: ¥2,253,500,000（約22.5億円）
 カテゴリB（電子部品）が全体の52.3%を占め、突出して大きな比率です。"""
 
-    elif "過剰" in question or "滞留" in question or "アラート" in question:
+    elif "過剰" in q or "滞留" in q or "アラート" in q:
         return """【過剰在庫品目 Top 10】
 
 | 品目ID | 品目名 | カテゴリ | 回転率 | 滞留日数 |
@@ -143,16 +129,11 @@ def _fallback_response(question: str) -> str:
 | ITM-0106 | 電子部品_G06 | B | 0.52 | 148日 |
 | ITM-0101 | 電子部品_B01 | B | 0.58 | 141日 |
 | ITM-0104 | 電子部品_E04 | B | 0.63 | 134日 |
-| ITM-0107 | 電子部品_H07 | B | 0.71 | 127日 |
-| ITM-0100 | 電子部品_A00 | B | 0.78 | 118日 |
-| ITM-0201 | 機械部品_B01 | A | 0.85 | 105日 |
-| ITM-0108 | 電子部品_I08 | B | 0.91 | 98日 |
-| ITM-0105 | 電子部品_F05 | B | 1.02 | 93日 |
 
 過剰在庫品目の 80% がカテゴリB（電子部品）に集中しています。
 平均滞留日数: カテゴリB = 133日、他カテゴリ = 45日"""
 
-    elif "需要" in question or "予測" in question or "乖離" in question:
+    elif "需要" in q or "予測" in q or "乖離" in q:
         return """【需要予測 vs 実績の乖離分析】
 
 | カテゴリ | 平均予測数量 | 平均実績数量 | 乖離率 |
@@ -166,7 +147,7 @@ def _fallback_response(question: str) -> str:
 予測が実績の約2倍になっています。
 これが過剰在庫の主要因と考えられます。"""
 
-    elif "リードタイム" in question or "サプライヤー" in question or "発注" in question:
+    elif "リードタイム" in q or "サプライヤー" in q or "発注" in q:
         return """【サプライヤー別 発注リードタイム】
 
 | サプライヤー | 平均リードタイム | カテゴリ |
@@ -177,12 +158,21 @@ def _fallback_response(question: str) -> str:
 | アジア素材 | 32日 | C |
 | 大阪部品 | 27日 | A |
 | グローバルパーツ | 23日 | A |
-| 東北素材 | 21日 | C |
-| 関東パッケージ | 8日 | D |
 
 カテゴリBのサプライヤーは平均リードタイムが 42.7日 で、
-他カテゴリ（平均 21.8日）の約2倍です。
-長いリードタイムが過剰発注の要因の一つです。"""
+他カテゴリ（平均 21.8日）の約2倍です。"""
+
+    elif "回転" in q:
+        return """【カテゴリ別 在庫回転率】
+
+| カテゴリ | 平均回転率 | 判定 |
+| --- | --- | --- |
+| D | 5.2 回/月 | ✅ 良好 |
+| A | 3.8 回/月 | ✅ 良好 |
+| C | 3.5 回/月 | ✅ 良好 |
+| B | 1.1 回/月 | ⚠️ 要改善 |
+
+カテゴリBの回転率が極端に低く、在庫の流動性に問題があります。"""
 
     else:
         return f"""ご質問「{question}」に対する分析結果:
