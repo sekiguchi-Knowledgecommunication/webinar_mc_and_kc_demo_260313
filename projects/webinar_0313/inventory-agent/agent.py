@@ -61,19 +61,24 @@ def report_step(step_number: int, step_title: str, step_detail: str) -> str:
 # ====================
 
 # Databricks の認証情報（ノートブック内では自動設定される）
-DATABRICKS_HOST = os.environ.get("DATABRICKS_HOST", "")
 DATABRICKS_TOKEN = os.environ.get("DATABRICKS_TOKEN", "")
+
+# Databricks AI Gateway URL
+# 新しい AI Gateway エンドポイント形式を使用
+AI_GATEWAY_URL = os.environ.get(
+    "DATABRICKS_AI_GATEWAY_URL",
+    "https://3032287118242102.ai-gateway.cloud.databricks.com/mlflow/v1"
+)
 
 # 使用するモデル名
 MODEL_NAME = os.environ.get(
     "AGENT_MODEL",
-    "databricks-meta-llama-3-1-70b-instruct"
+    "databricks-meta-llama-3-3-70b-instruct"
 )
 
 # Databricks AI Gateway 用の OpenAI クライアント
-# base_url: Databricks の serving-endpoints をOpenAI互換APIとして使用
 _databricks_client = AsyncOpenAI(
-    base_url=f"{DATABRICKS_HOST}/serving-endpoints",
+    base_url=AI_GATEWAY_URL,
     api_key=DATABRICKS_TOKEN,
 )
 

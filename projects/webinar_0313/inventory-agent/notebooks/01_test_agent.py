@@ -33,7 +33,7 @@ sys.path.insert(0, AGENT_PATH)
 
 # Genie Space ID（空欄ならフォールバックモード）
 os.environ["GENIE_SPACE_ID"] = ""
-os.environ["AGENT_MODEL"] = "databricks-meta-llama-3-1-70b-instruct"
+os.environ["AGENT_MODEL"] = "databricks-meta-llama-3-3-70b-instruct"
 
 # Databricks AI Gateway 接続設定
 # ノートブック内では以下で自動取得できる
