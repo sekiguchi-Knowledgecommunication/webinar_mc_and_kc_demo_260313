@@ -18,19 +18,67 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## ⚙️ 設定（ここだけ編集してください）
+
+# COMMAND ----------
+
 import os
 import sys
 import mlflow
 
-# inventory-agent のパスを追加
-AGENT_PATH = os.path.join(os.path.dirname(os.getcwd()), "")
+# ============================================
+# 🔧 ユーザー設定: ワークスペース上の絶対パスを指定
+# ============================================
+WORKSPACE_ROOT = "/Workspace/Users/s.sekiguchi7056@gmail.com/10.webinar/webinar_mc_and_kc_demo_260313"
+AGENT_PATH = f"{WORKSPACE_ROOT}/projects/webinar_0313/inventory-agent"
+
+# Unity Catalog の登録先（実在するカタログ・スキーマを指定）
+UC_MODEL_NAME = "prod_manufacturing.gold.inventory_agent"
+
+# Serving Endpoint 名
+ENDPOINT_NAME = "inventory-agent-endpoint"
+
+# ============================================
+# 📄 env.conf から設定を読み込み
+# ============================================
+ENV_CONF_PATH = f"{WORKSPACE_ROOT}/projects/webinar_0313/env.conf"
+
+def load_env_conf(path):
+    """env.conf ファイルから KEY=VALUE を読み込んで環境変数に設定"""
+    try:
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+        print(f"✅ env.conf 読み込み完了: {path}")
+    except FileNotFoundError:
+        print(f"⚠️ env.conf が見つかりません: {path}")
+
+load_env_conf(ENV_CONF_PATH)
+
+# Databricks AI Gateway 接続設定
+host = spark.conf.get("spark.databricks.workspaceUrl", "")
+if host and not host.startswith("https://"):
+    host = f"https://{host}"
+os.environ["DATABRICKS_HOST"] = host
+
+token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
+if token:
+    os.environ["DATABRICKS_TOKEN"] = token
+
+# エージェントパスを追加
 sys.path.insert(0, AGENT_PATH)
 
-# もし Repos のパスの場合は以下に変更:
-# sys.path.insert(0, "/Workspace/Repos/<username>/webinar_mc_and_kc_demo_260313/inventory-agent")
-
 mlflow.set_tracking_uri("databricks")
-print("✅ セットアップ完了")
+
+print(f"✅ セットアップ完了")
+print(f"   AGENT_PATH: {AGENT_PATH}")
+print(f"   UC_MODEL_NAME: {UC_MODEL_NAME}")
+print(f"   ENDPOINT_NAME: {ENDPOINT_NAME}")
+print(f"   GENIE_SPACE_ID: {os.environ.get('GENIE_SPACE_ID', '(未設定)')}")
 
 # COMMAND ----------
 
@@ -39,22 +87,15 @@ print("✅ セットアップ完了")
 
 # COMMAND ----------
 
-from config import UC_MODEL_NAME, ENDPOINT_NAME, AGENT_DESCRIPTION
-
-print(f"📦 モデル登録先: {UC_MODEL_NAME}")
-print(f"🔗 Endpoint 名: {ENDPOINT_NAME}")
-
-# COMMAND ----------
-
-# エージェントのコードパス（agent.py がエントリポイント）
-agent_code_path = os.path.join(AGENT_PATH, "agent.py")
-
 # 実験名を設定
-experiment_name = f"/Users/{spark.conf.get('spark.databricks.notebook.path', '/tmp').rsplit('/', 1)[0]}/inventory_agent_experiment"
+experiment_name = "/tmp/inventory_agent_experiment"
 try:
     mlflow.set_experiment(experiment_name)
 except Exception:
     mlflow.set_experiment("/tmp/inventory_agent_experiment")
+
+# エージェントのコードパス（agent.py がエントリポイント）
+agent_code_path = os.path.join(AGENT_PATH, "agent.py")
 
 # MLflow にエージェントをログ
 with mlflow.start_run(run_name="inventory_agent_deploy") as run:
@@ -75,7 +116,7 @@ with mlflow.start_run(run_name="inventory_agent_deploy") as run:
         # 環境変数の設定
         model_config={
             "GENIE_SPACE_ID": os.environ.get("GENIE_SPACE_ID", ""),
-            "AGENT_MODEL": os.environ.get("AGENT_MODEL", "databricks-meta-llama-3-1-70b-instruct"),
+            "AGENT_MODEL": os.environ.get("AGENT_MODEL", "databricks-meta-llama-3-3-70b-instruct"),
         },
     )
 
@@ -105,7 +146,7 @@ client = MlflowClient()
 client.update_model_version(
     name=UC_MODEL_NAME,
     version=model_version.version,
-    description=AGENT_DESCRIPTION,
+    description="在庫分析 AI エージェント — Genie API × OpenAI Agents SDK",
 )
 
 # COMMAND ----------
@@ -144,7 +185,6 @@ serving_config = EndpointCoreConfigInput(
 
 # エンドポイント作成 or 更新
 try:
-    # 既存エンドポイントの更新
     w.serving_endpoints.update_config(
         name=ENDPOINT_NAME,
         served_entities=serving_config.served_entities,
@@ -152,7 +192,6 @@ try:
     )
     print(f"✅ Endpoint 更新完了: {ENDPOINT_NAME}")
 except Exception:
-    # 新規作成
     w.serving_endpoints.create(
         name=ENDPOINT_NAME,
         config=serving_config,
@@ -162,14 +201,15 @@ except Exception:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Step 4: Endpoint の稼働確認（デプロイ完了を待つ）
+# MAGIC ## Step 4: Endpoint の稼働確認
 
 # COMMAND ----------
 
 import time
+import json
 
 print("⏳ Endpoint がアクティブになるまで待機中...")
-for i in range(60):  # 最大10分
+for i in range(60):
     endpoint = w.serving_endpoints.get(ENDPOINT_NAME)
     state = endpoint.state
     if state and state.ready == "READY":
@@ -181,7 +221,7 @@ for i in range(60):  # 最大10分
     print(f"  ... 待機中 ({(i+1)*10}秒経過) — 状態: {state}")
     time.sleep(10)
 else:
-    print("⚠️ タイムアウト: Endpoint がまだアクティブになっていません。Databricks UI で確認してください。")
+    print("⚠️ タイムアウト: Databricks UI で確認してください。")
 
 # COMMAND ----------
 
@@ -189,9 +229,6 @@ else:
 # MAGIC ## Step 5: 動作確認テスト
 
 # COMMAND ----------
-
-# Endpoint にテストリクエストを送信
-import json
 
 response = w.serving_endpoints.query(
     name=ENDPOINT_NAME,
@@ -210,8 +247,7 @@ print(json.dumps(response.as_dict(), indent=2, ensure_ascii=False))
 # MAGIC %md
 # MAGIC ## 完了
 # MAGIC
-# MAGIC Endpoint をデプロイしました。以下を `inventory-demo-app` の環境変数に設定してください:
-# MAGIC
+# MAGIC `inventory-demo-app` の環境変数に以下を設定してください:
 # MAGIC ```
 # MAGIC SERVING_ENDPOINT=inventory-agent-endpoint
 # MAGIC ```

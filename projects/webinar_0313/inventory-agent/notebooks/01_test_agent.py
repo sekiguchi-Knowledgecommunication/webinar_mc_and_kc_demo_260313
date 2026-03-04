@@ -14,41 +14,63 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC ## ⚙️ 設定（ここだけ編集してください）
+
+# COMMAND ----------
+
 import os
 import sys
 import logging
 import nest_asyncio
 
-# Databricks ノートブックは既にイベントループが動いているため nest_asyncio で対応
 nest_asyncio.apply()
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 
-# inventory-agent のパスを追加
-AGENT_PATH = os.path.join(os.path.dirname(os.getcwd()), "")
+# ============================================
+# 🔧 ユーザー設定: ワークスペース上の絶対パスを指定
+# ============================================
+WORKSPACE_ROOT = "/Workspace/Users/s.sekiguchi7056@gmail.com/10.webinar/webinar_mc_and_kc_demo_260313"
+AGENT_PATH = f"{WORKSPACE_ROOT}/projects/webinar_0313/inventory-agent"
+
+# ============================================
+# 📄 env.conf から設定を読み込み
+# ============================================
+ENV_CONF_PATH = f"{WORKSPACE_ROOT}/projects/webinar_0313/env.conf"
+
+def load_env_conf(path):
+    """env.conf ファイルから KEY=VALUE を読み込んで環境変数に設定"""
+    try:
+        with open(path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    os.environ[key.strip()] = value.strip()
+        print(f"✅ env.conf 読み込み完了: {path}")
+    except FileNotFoundError:
+        print(f"⚠️ env.conf が見つかりません: {path}")
+        print("   GENIE_SPACE_ID, AGENT_MODEL を手動で設定してください")
+
+load_env_conf(ENV_CONF_PATH)
+
+# エージェントのパスを追加
 sys.path.insert(0, AGENT_PATH)
 
-# もし Repos のパスの場合は以下に変更:
-# sys.path.insert(0, "/Workspace/Repos/<username>/webinar_mc_and_kc_demo_260313/inventory-agent")
-
-# Genie Space ID（空欄ならフォールバックモード）
-os.environ["GENIE_SPACE_ID"] = ""
-os.environ["AGENT_MODEL"] = "databricks-meta-llama-3-3-70b-instruct"
-
 # Databricks AI Gateway 接続設定
-# ノートブック内では以下で自動取得できる
-import subprocess
 host = spark.conf.get("spark.databricks.workspaceUrl", "")
 if host and not host.startswith("https://"):
     host = f"https://{host}"
 os.environ["DATABRICKS_HOST"] = host
 
-# トークンはノートブックコンテキストから取得
 token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
 if token:
     os.environ["DATABRICKS_TOKEN"] = token
 
 print(f"✅ セットアップ完了")
+print(f"   AGENT_PATH: {AGENT_PATH}")
+print(f"   GENIE_SPACE_ID: {os.environ.get('GENIE_SPACE_ID', '(未設定)')}")
+print(f"   AGENT_MODEL: {os.environ.get('AGENT_MODEL', '(未設定)')}")
 print(f"   DATABRICKS_HOST: {os.environ.get('DATABRICKS_HOST', '(未設定)')}")
 print(f"   DATABRICKS_TOKEN: {'***設定済み' if os.environ.get('DATABRICKS_TOKEN') else '(未設定)'}")
 
