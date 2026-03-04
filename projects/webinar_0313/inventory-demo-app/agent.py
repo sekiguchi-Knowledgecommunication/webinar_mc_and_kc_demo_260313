@@ -35,8 +35,8 @@ PROMPT_PATH = PROMPT_DIR / "system_prompt.md"
 try:
     raw_prompt = PROMPT_PATH.read_text(encoding="utf-8")
     # 環境変数から取得（未設定時はデフォルト値を使用）
-    CATALOG = os.environ.get("DATABRICKS_CATALOG", "prod_manufacturing")
-    SCHEMA = os.environ.get("DATABRICKS_SCHEMA", "gold")
+    CATALOG = os.environ.get("DATABRICKS_CATALOG", "apps_demo_catalog")
+    SCHEMA = os.environ.get("DATABRICKS_SCHEMA", "webinar_demo_0313")
     # プロンプト内のプレースホルダを置換
     SYSTEM_PROMPT = raw_prompt.replace("{catalog}", CATALOG).replace("{schema}", SCHEMA)
 except FileNotFoundError:

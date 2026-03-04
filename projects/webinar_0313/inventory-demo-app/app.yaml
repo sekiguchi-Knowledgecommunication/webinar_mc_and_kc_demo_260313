@@ -16,7 +16,7 @@ env:
     value: "databricks-meta-llama-3-3-70b-instruct"
   - name: DATABRICKS_CATALOG
     description: "データが格納されている Unity Catalog のカタログ名"
-    value: "prod_manufacturing"
+    value: "apps_demo_catalog"
   - name: DATABRICKS_SCHEMA
     description: "データが格納されているスキーマ名"
-    value: "gold"
+    value: "webinar_demo_0313"
