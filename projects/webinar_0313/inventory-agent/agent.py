@@ -3,13 +3,16 @@
 
 OpenAI Agents SDK を使用し、Genie API ツールで
 在庫データを自律的に探索・分析するエージェント。
+Databricks AI Gateway 経由で LLM を呼び出す。
 """
 
 import os
 import pathlib
 import logging
 
+from openai import AsyncOpenAI
 from agents import Agent, ModelSettings, function_tool
+from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from tools.genie_tool import query_genie
 
 logger = logging.getLogger(__name__)
@@ -54,14 +57,36 @@ def report_step(step_number: int, step_title: str, step_detail: str) -> str:
 
 
 # ====================
-# エージェント定義
+# Databricks AI Gateway 設定
 # ====================
 
-# 使用するモデル（Databricks AI Gateway 経由）
+# Databricks の認証情報（ノートブック内では自動設定される）
+DATABRICKS_HOST = os.environ.get("DATABRICKS_HOST", "")
+DATABRICKS_TOKEN = os.environ.get("DATABRICKS_TOKEN", "")
+
+# 使用するモデル名
 MODEL_NAME = os.environ.get(
     "AGENT_MODEL",
     "databricks-meta-llama-3-1-70b-instruct"
 )
+
+# Databricks AI Gateway 用の OpenAI クライアント
+# base_url: Databricks の serving-endpoints をOpenAI互換APIとして使用
+_databricks_client = AsyncOpenAI(
+    base_url=f"{DATABRICKS_HOST}/serving-endpoints",
+    api_key=DATABRICKS_TOKEN,
+)
+
+# OpenAI 互換モデルとしてラップ
+_model = OpenAIChatCompletionsModel(
+    model=MODEL_NAME,
+    openai_client=_databricks_client,
+)
+
+
+# ====================
+# エージェント定義
+# ====================
 
 # 在庫分析エージェント
 inventory_agent = Agent(
@@ -71,7 +96,7 @@ inventory_agent = Agent(
         query_inventory_data,
         report_step,
     ],
-    model=MODEL_NAME,
+    model=_model,
     model_settings=ModelSettings(
         max_tokens=4096,
     ),

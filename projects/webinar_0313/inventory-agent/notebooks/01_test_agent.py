@@ -35,7 +35,22 @@ sys.path.insert(0, AGENT_PATH)
 os.environ["GENIE_SPACE_ID"] = ""
 os.environ["AGENT_MODEL"] = "databricks-meta-llama-3-1-70b-instruct"
 
-print("✅ セットアップ完了")
+# Databricks AI Gateway 接続設定
+# ノートブック内では以下で自動取得できる
+import subprocess
+host = spark.conf.get("spark.databricks.workspaceUrl", "")
+if host and not host.startswith("https://"):
+    host = f"https://{host}"
+os.environ["DATABRICKS_HOST"] = host
+
+# トークンはノートブックコンテキストから取得
+token = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
+if token:
+    os.environ["DATABRICKS_TOKEN"] = token
+
+print(f"✅ セットアップ完了")
+print(f"   DATABRICKS_HOST: {os.environ.get('DATABRICKS_HOST', '(未設定)')}")
+print(f"   DATABRICKS_TOKEN: {'***設定済み' if os.environ.get('DATABRICKS_TOKEN') else '(未設定)'}")
 
 # COMMAND ----------
 
