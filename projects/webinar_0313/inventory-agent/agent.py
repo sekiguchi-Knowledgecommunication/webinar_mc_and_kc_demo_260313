@@ -106,3 +106,8 @@ inventory_agent = Agent(
         max_tokens=4096,
     ),
 )
+
+# MLflow コードベースログ用: このファイルのモデルオブジェクトを登録
+import mlflow
+mlflow.models.set_model(inventory_agent)
+
