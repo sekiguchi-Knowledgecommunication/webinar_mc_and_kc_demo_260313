@@ -13,7 +13,7 @@ import re
 import sys
 import dash
 from dash import Dash, html, dcc, callback, Input, Output, State, ALL, callback_context, no_update
-from flask import send_file, request, ALL
+from flask import send_file, request
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
@@ -314,7 +314,7 @@ def build_agent_page():
                 for i, q in enumerate([
                     "在庫の全体状況を分析して",
                     "過剰在庫のレポートを作成して",
-                    "不足品目の発注提案を作成して",
+                    "来週不足する特注モーターXの対応を提案して",
                     "カテゴリ別の回転率は？",
                 ])
             ]),
@@ -485,15 +485,16 @@ def handle_agent_response(trigger_data, current_messages, history):
             }),
             html.A(
                 html.Div([
-                    html.Span("📊 ", style={"fontSize": "1.2rem"}),
-                    html.Span(f"{filename} をダウンロード", style={"fontWeight": "600"})
+                    html.Span("🟩 ", style={"fontSize": "1.2rem"}),
+                    html.Span(f"Excel レポートをダウンロード（{filename}）", style={"fontWeight": "600"})
                 ]),
                 href=f"/download?file={filepath}",
                 target="_blank",
                 style={
                     "display": "inline-block", "padding": "12px 20px",
-                    "background": "#f0fdf4", "border": "1px solid #bbf7d0",
+                    "background": "#f0fdf4", "border": "2px solid #22c55e",
                     "borderRadius": "8px", "color": "#166534", "textDecoration": "none",
+                    "fontWeight": "600", "boxShadow": "0 2px 6px rgba(34,197,94,0.15)",
                 }
             )
         ]))
@@ -542,6 +543,9 @@ def _call_agent(question: str, history: list) -> str:
     AI エージェントを直接呼び出す（公式パターン: AsyncDatabricksOpenAI）。
     Serving Endpoint を経由せず、アプリ内で Runner.run() を実行。
     エージェント未初期化時はフォールバック（ダミーデータ）。
+
+    LLM が [REPORT:...] / [ORDER_PROPOSAL:...] タグを省略して要約する場合に備え、
+    Runner.run() の実行履歴（new_messages）からタグを検索して final_output に付加する。
     """
     if not AGENT_AVAILABLE:
         print("\u26a0\ufe0f AGENT_AVAILABLE=False, Genie フォールバック")
@@ -556,8 +560,53 @@ def _call_agent(question: str, history: list) -> str:
         result = asyncio.run(
             Runner.run(inventory_agent, input=messages)
         )
-        print(f"\u2705 Runner.run 完了: final_output={result.final_output[:100] if result.final_output else 'None'}")
-        return result.final_output or "エージェントからの応答が空です。もう一度お試しください。"
+        final_output = result.final_output or "エージェントからの応答が空です。もう一度お試しください。"
+        print(f"\u2705 Runner.run 完了: final_output={final_output[:100]}")
+
+        # ─────────────────────────────────────────────────────
+        # LLM がタグを省略した場合のフォールバック（多段階）:
+        # 1. new_messages のツール出力テキストからタグを検索
+        # 2. それでも見つからない場合は report_tool のサイドチャンネルを参照
+        # ─────────────────────────────────────────────────────
+        if "[REPORT:" not in final_output and "[ORDER_PROPOSAL:" not in final_output:
+            tag_found = False
+            # ① new_messages から検索
+            try:
+                for msg in result.new_messages:
+                    msg_str = str(msg)
+                    tag_match = re.search(r'\[REPORT:([^\]]+)\]', msg_str)
+                    if tag_match:
+                        tag = f"[REPORT:{tag_match.group(1)}]"
+                        print(f"\U0001f527 new_messages からタグ補完: {tag}")
+                        final_output = f"{tag}\n\n{final_output}"
+                        tag_found = True
+                        break
+                    order_match = re.search(r'\[ORDER_PROPOSAL:([^\]]+)\]', msg_str)
+                    if order_match:
+                        tag = f"[ORDER_PROPOSAL:{order_match.group(1)}]"
+                        print(f"\U0001f527 new_messages からタグ補完: {tag}")
+                        final_output = f"{tag}\n\n{final_output}"
+                        tag_found = True
+                        break
+            except Exception as tag_err:
+                print(f"⚠️ new_messages スキャン中の例外（無視）: {tag_err}")
+
+            # ② サイドチャンネル（report_tool._LAST_GENERATED_REPORT）を参照
+            if not tag_found:
+                try:
+                    from tools.report_tool import _LAST_GENERATED_REPORT
+                    if _LAST_GENERATED_REPORT.get("path"):
+                        path = _LAST_GENERATED_REPORT["path"]
+                        tag = f"[REPORT:{path}]"
+                        print(f"\U0001f527 サイドチャンネルからタグ補完: {tag}")
+                        final_output = f"{tag}\n\n{final_output}"
+                        # 読み取り後はリセット
+                        _LAST_GENERATED_REPORT.clear()
+                except Exception as sc_err:
+                    print(f"⚠️ サイドチャンネル参照中の例外（無視）: {sc_err}")
+
+        return final_output
+
     except Exception as e:
         print(f"\u274c Runner.run エラー: {e}")
         import traceback
@@ -572,11 +621,46 @@ server = app.server
 
 @server.route("/download")
 def download_file():
+    """
+    Workspace に保存された Excel レポートを Databricks SDK 経由で取得し、
+    ブラウザにバイナリ送信する。ローカルファイルシステムには依存しない。
+    """
+    import io as _io
     filepath = request.args.get("file")
-    if filepath and os.path.exists(filepath):
-        from flask import send_file
-        return send_file(filepath, as_attachment=True)
-    return "File not found", 404
+    if not filepath:
+        return "ファイルパスが指定されていません", 400
+
+    try:
+        from databricks.sdk import WorkspaceClient
+        w = WorkspaceClient()
+        # Workspace からファイルをメモリ上に読み込む
+        # _StreamingResponse の正しい API: .read() を使用
+        response = w.workspace.download(filepath)
+        # Databricks SDK の _StreamingResponse は .read() で bytes を返す
+        if hasattr(response, "read"):
+            content = response.read()
+        elif hasattr(response, "contents"):
+            content = response.contents.read()
+        else:
+            # フォールバック: イテレータとして全チャンクを結合
+            content = b"".join(response)
+        filename = os.path.basename(filepath)
+        # Excel の場合は xlsx の MIME タイプ、それ以外は汎用バイナリ
+        if filename.endswith(".xlsx"):
+            mimetype = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif filename.endswith(".csv"):
+            mimetype = "text/csv; charset=utf-8-sig"
+        else:
+            mimetype = "application/octet-stream"
+        return send_file(
+            _io.BytesIO(content),
+            as_attachment=True,
+            download_name=filename,
+            mimetype=mimetype,
+        )
+    except Exception as e:
+        logger.error(f"ダウンロードエラー: {e}")
+        return f"ダウンロードに失敗しました: {e}", 500
 
 if __name__ == "__main__":
     port = int(os.environ.get("DATABRICKS_APP_PORT", 8050))
